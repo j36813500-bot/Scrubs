@@ -9,6 +9,11 @@ import CartPage from './pages/CartPage';
 import TrackPage from './pages/TrackPage';
 import AuthPage from './pages/AuthPage';
 import ProfilePage from './pages/ProfilePage';
+import FavoritesPage from './pages/FavoritesPage';
+import FAQPage from './pages/FAQPage';
+import SupportPage from './pages/SupportPage';
+import AboutPage from './pages/AboutPage';
+import ContactPage from './pages/ContactPage';
 
 function Routes() {
   const { path } = useRouter();
@@ -17,29 +22,41 @@ function Routes() {
     window.scrollTo(0, 0);
   }, [path]);
 
-  const isAdmin = path.startsWith('/admin');
-  const isAuth = path === '/auth';
-  const isViewer = path.startsWith('/product/');
+  // Auth page: no navbar
+  if (path === '/auth') return <AuthPage />;
 
-  if (isAdmin || isAuth) {
-    if (isAuth) return <AuthPage />;
-    return <div className="p-20 text-center text-beige-700">لوحة الإدارة</div>;
+  // Admin page placeholder
+  if (path.startsWith('/admin')) {
+    return (
+      <>
+        <Navbar />
+        <div className="pt-28 px-4 pb-24 min-h-screen flex items-center justify-center">
+          <div className="glass-card rounded-3xl p-12 text-center">
+            <p className="text-beige-700 mb-4">لوحة الإدارة</p>
+          </div>
+        </div>
+      </>
+    );
   }
+
+  let page: React.ReactNode;
+  if (path === '/') page = <HomePage />;
+  else if (path === '/store') page = <StorePage />;
+  else if (path.startsWith('/product/')) page = <ProductPage />;
+  else if (path === '/cart') page = <CartPage />;
+  else if (path === '/track' || path === '/orders') page = <TrackPage />;
+  else if (path === '/profile') page = <ProfilePage />;
+  else if (path === '/favorites') page = <FavoritesPage />;
+  else if (path === '/faq') page = <FAQPage />;
+  else if (path === '/support') page = <SupportPage />;
+  else if (path === '/about') page = <AboutPage />;
+  else if (path === '/contact') page = <ContactPage />;
+  else page = <HomePage />;
 
   return (
     <>
       <Navbar />
-      <div className="min-h-screen">
-        {path === '/' && <HomePage />}
-        {path === '/store' && <StorePage />}
-        {path.startsWith('/product/') && <ProductPage />}
-        {path === '/cart' && <CartPage />}
-        {path === '/track' && <TrackPage />}
-        {path === '/profile' && <ProfilePage />}
-        {!['/', '/store', '/cart', '/track', '/profile'].includes(path) && !path.startsWith('/product/') && (
-          <HomePage />
-        )}
-      </div>
+      <div className="min-h-screen pb-24 lg:pb-12">{page}</div>
     </>
   );
 }

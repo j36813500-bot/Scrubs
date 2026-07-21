@@ -1,113 +1,328 @@
-import { useEffect, useState } from 'react';
-import { fetchSocialLinks } from '../lib/api';
-import type { SocialLink } from '../lib/types';
+import { useRouter } from '../lib/router';
 
-export default function AboutPage() {
-  const [socials, setSocials] = useState<SocialLink[]>([]);
-  useEffect(() => { (async () => { try { setSocials(await fetchSocialLinks()); } catch { /* ignore */ } })(); }, []);
+// ============================================================================
+// AboutPage — Premium Arabic (RTL) "About Us" page for اسكربك
+// Palette: blush (pink) · lavender (purple) · beige (neutral) · gold (accent)
+// Effects: glass morphism, ambient glow orbs, premium gradient text, float
+// ============================================================================
 
+// ----------------------------------------------------------------------------
+// Inline SVG icons (lucide-react style, stroke-based, 24x24 viewBox)
+// ----------------------------------------------------------------------------
+type IconProps = { className?: string };
+
+function ShieldIcon({ className = 'h-7 w-7' }: IconProps) {
   return (
-    <div className="pt-28 px-4 pb-12">
-      <div className="mx-auto max-w-5xl">
-        {/* hero */}
-        <section className="text-center mb-16 animate-fade-in-up">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass mb-6">
-            <span className="w-2 h-2 rounded-full bg-gold-400 animate-pulse-soft" />
-            <span className="text-sm font-semibold text-beige-700">قصتنا</span>
-          </div>
-          <h1 className="font-display font-black text-4xl sm:text-6xl mb-6">
-            <span className="premium-gradient-text">من نحن</span>
-          </h1>
-          <p className="text-lg text-beige-700 max-w-2xl mx-auto leading-relaxed">
-            وُلدت اسكربك من شغفٍ بالتميّز الطبي ورغبةٍ في إعادة تعريف اليونيفورم الطبي كقطعة أنيقة تمنح الكوادر الصحية ثقةً وإطلالةً راقية. نؤمن أن من يعتنون بصحتنا يستحقون أن يرتدوا ما يليق بمكانتهم.
-          </p>
-        </section>
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+      <path d="m9 12 2 2 4-4" />
+    </svg>
+  );
+}
 
-        {/* story cards */}
-        <section className="grid md:grid-cols-3 gap-6 mb-16">
-          {[
-            { icon: 'sparkle', t: 'رؤيتنا', d: 'أن نكون الوجهة الأولى لليونيفورمات الطبية الفاخرة في المنطقة العربية، بتصاميم تجمع بين الأناقة والراحة والاحترافية.' },
-            { icon: 'heart', t: 'رسالتنا', d: 'تمكين كل كادر صحي بإطلالة تعكس مهنيتّه وذوقه، عبر يونيفورمات مصممة بعناية من أقمشة فاخرة ومستدامة.' },
-            { icon: 'star', t: 'قيمنا', d: 'الجودة، الأناقة، الاهتمام بالتفاصيل، وخدمة عملاء استثنائية ترافقك في كل خطوة من رحلتك معنا.' },
-          ].map((c, i) => (
-            <div key={c.t} className="glass-card rounded-3xl p-8 text-center animate-fade-in-up" style={{ animationDelay: `${i * 100}ms`, opacity: 0 }}>
-              <div className="w-16 h-16 mx-auto rounded-3xl bg-gradient-to-br from-blush-200 to-lavender-200 flex items-center justify-center mb-4 animate-float-medium" style={{ animationDelay: `${i * 0.5}s` }}>
-                <StoryIcon name={c.icon} />
-              </div>
-              <h3 className="font-display font-bold text-xl text-beige-900 mb-2">{c.t}</h3>
-              <p className="text-beige-700 text-sm leading-relaxed">{c.d}</p>
-            </div>
-          ))}
-        </section>
+function HeartIcon({ className = 'h-7 w-7' }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5l7 7Z" />
+    </svg>
+  );
+}
 
-        {/* stats */}
-        <section className="glass-card rounded-3xl p-10 mb-16 text-center relative overflow-hidden">
-          <div className="absolute -top-20 -right-20 w-60 h-60 rounded-full bg-blush-200/40 blur-3xl animate-breathe" />
-          <div className="absolute -bottom-20 -left-20 w-60 h-60 rounded-full bg-lavender-200/40 blur-3xl animate-breathe" style={{ animationDelay: '1s' }} />
-          <div className="relative z-10 grid grid-cols-2 md:grid-cols-4 gap-6">
-            {[
-              { n: '+5000', l: 'عميل سعيد' },
-              { n: '+120', l: 'تصميم فاخر' },
-              { n: '+30', l: 'تخصص طبي' },
-              { n: '4.9', l: 'تقييم العملاء' },
-            ].map(s => (
-              <div key={s.l}>
-                <div className="font-display font-black text-4xl premium-gradient-text mb-1">{s.n}</div>
-                <div className="text-sm text-beige-600">{s.l}</div>
-              </div>
-            ))}
-          </div>
-        </section>
+function SparklesIcon({ className = 'h-7 w-7' }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z" />
+      <path d="M19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8L19 14z" />
+      <path d="M5 14l.8 2.2L8 17l-2.2.8L5 20l-.8-2.2L2 17l2.2-.8L5 14z" />
+    </svg>
+  );
+}
 
-        {/* social glass cards */}
-        <section>
-          <h2 className="font-display font-bold text-2xl text-beige-900 text-center mb-2">تواصل معنا</h2>
-          <p className="text-beige-600 text-center mb-8">تابعنا على منصاتنا الاجتماعية</p>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {socials.map((s, i) => (
-              <a
-                key={s.id}
-                href={s.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="glass-card rounded-3xl p-6 text-center group relative overflow-hidden hover:scale-105 hover:shadow-glow transition-all duration-500 animate-fade-in-up"
-                style={{ animationDelay: `${i * 80}ms`, opacity: 0 }}
-              >
-                <div
-                  className="absolute inset-0 opacity-0 group-hover:opacity-20 transition-opacity duration-500"
-                  style={{ background: `radial-gradient(circle at center, ${s.color_hex}, transparent)` }}
-                />
-                <div
-                  className="w-14 h-14 mx-auto rounded-2xl flex items-center justify-center mb-3 group-hover:scale-110 group-hover:rotate-6 transition-transform"
-                  style={{ background: `linear-gradient(135deg, ${s.color_hex}, ${s.color_hex}99)` }}
-                >
-                  <SocialIcon platform={s.platform} />
-                </div>
-                <div className="font-display font-bold text-beige-900">{s.label_ar}</div>
-                <div className="text-xs text-beige-600 mt-1">تابعنا</div>
-              </a>
-            ))}
-          </div>
-        </section>
-      </div>
+function HeadsetIcon({ className = 'h-7 w-7' }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 11v-1a9 9 0 0 1 18 0v1" />
+      <path d="M21 16a2 2 0 0 1-2 2h-1a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v3z" />
+      <path d="M3 16a2 2 0 0 0 2 2h1a1 1 0 0 0 1-1v-3a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v3z" />
+      <path d="M18 18a4 4 0 0 1-4 3h-2" />
+    </svg>
+  );
+}
+
+function ArrowLeftIcon({ className = 'h-5 w-5' }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M19 12H5" />
+      <path d="M12 19l-7-7 7-7" />
+    </svg>
+  );
+}
+
+function ClockIcon({ className = 'h-7 w-7' }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 2" />
+    </svg>
+  );
+}
+
+function UsersIcon({ className = 'h-7 w-7' }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  );
+}
+
+function BoxIcon({ className = 'h-7 w-7' }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" />
+      <path d="m3.3 7 8.7 5 8.7-5" />
+      <path d="M12 22V12" />
+    </svg>
+  );
+}
+
+function StarIcon({ className = 'h-7 w-7' }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M12 2l2.9 6.3 6.9.6-5.2 4.6 1.6 6.8L12 17.3 5.8 20.9l1.6-6.8L2.2 8.9l6.9-.6L12 2z" />
+    </svg>
+  );
+}
+
+// ----------------------------------------------------------------------------
+// Ambient glow orbs — blurred, animated background accents
+// ----------------------------------------------------------------------------
+function GlowOrbs() {
+  return (
+    <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden" aria-hidden="true">
+      <div
+        className="animate-float-medium absolute -top-24 -right-24 h-[28rem] w-[28rem] rounded-full opacity-50 blur-3xl"
+        style={{ background: 'radial-gradient(circle, #fbcfe8 0%, transparent 70%)' }}
+      />
+      <div
+        className="animate-float-medium absolute top-1/3 -left-32 h-[32rem] w-[32rem] rounded-full opacity-40 blur-3xl"
+        style={{ background: 'radial-gradient(circle, #ddd6fe 0%, transparent 70%)', animationDelay: '1.2s' }}
+      />
+      <div
+        className="animate-float-medium absolute bottom-0 right-1/4 h-[24rem] w-[24rem] rounded-full opacity-30 blur-3xl"
+        style={{ background: 'radial-gradient(circle, #fde68a 0%, transparent 70%)', animationDelay: '2.1s' }}
+      />
     </div>
   );
 }
 
-function StoryIcon({ name }: { name: string }) {
-  const cls = "w-8 h-8 text-blush-700";
-  if (name === 'sparkle') return <svg className={cls} viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2 7 7 2-7 2-2 7-2-7-7-2 7-2 2-7z"/></svg>;
-  if (name === 'heart') return <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>;
-  return <svg className={cls} viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>;
+// ----------------------------------------------------------------------------
+// Static content
+// ----------------------------------------------------------------------------
+type Value = {
+  icon: (props: IconProps) => JSX.Element;
+  title: string;
+  description: string;
+};
+
+const VALUES: Value[] = [
+  {
+    icon: ShieldIcon,
+    title: 'الجودة',
+    description: 'نختار أجود الأقمشة عالمياً ونخضعها لمعايير صارمة لتدوم طويلاً وتتحمل الحركة اليومية.',
+  },
+  {
+    icon: HeartIcon,
+    title: 'الراحة',
+    description: 'تصاميم مدروسة بقصات مريحة وخامات ناعمة تمنحك حرية الحركة طوال ساعات العمل الطويلة.',
+  },
+  {
+    icon: SparklesIcon,
+    title: 'الأناقة',
+    description: 'ألوان راقية وتفاصيل عصرية تعكس شخصيتك المهنية وتمنحك إطلالة واثقة في المستشفى والعيادة.',
+  },
+  {
+    icon: HeadsetIcon,
+    title: 'خدمة العملاء',
+    description: 'فريق متخصص يرافقك من اختيار المقاس حتى ما بعد الشراء، لضمان تجربة شراء لا تُنسى.',
+  },
+];
+
+type Stat = {
+  icon: (props: IconProps) => JSX.Element;
+  value: string;
+  label: string;
+};
+
+const STATS: Stat[] = [
+  { icon: ClockIcon, value: '+٥', label: 'سنوات الخبرة' },
+  { icon: UsersIcon, value: '+١٠٬٠٠٠', label: 'عميل سعيد' },
+  { icon: BoxIcon, value: '+٥٠', label: 'منتج' },
+  { icon: StarIcon, value: '٤٫٩', label: 'تقييم' },
+];
+
+// ----------------------------------------------------------------------------
+// Value card (glass)
+// ----------------------------------------------------------------------------
+function ValueCard({ value, index }: { value: Value; index: number }) {
+  const Icon = value.icon;
+  return (
+    <div
+      className="glass-card group flex flex-col items-center gap-4 rounded-3xl p-6 text-center transition-all duration-500 hover:-translate-y-1 hover:shadow-glow sm:p-8"
+      style={{ animationDelay: `${index * 120}ms` }}
+    >
+      <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-blush-200 to-lavender-200 text-blush-700 transition-all duration-500 group-hover:scale-110 group-hover:from-blush-300 group-hover:to-lavender-300">
+        <Icon className="h-8 w-8" />
+      </span>
+      <h3 className="text-lg font-bold text-beige-800">{value.title}</h3>
+      <p className="text-sm leading-relaxed text-beige-600">{value.description}</p>
+    </div>
+  );
 }
 
-function SocialIcon({ platform }: { platform: string }) {
-  const cls = "w-7 h-7 text-white";
-  switch (platform) {
-    case 'tiktok': return <svg className={cls} viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64c.3 0 .6.05.88.13V9.4a6.33 6.33 0 0 0-1-.05A6.34 6.34 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/></svg>;
-    case 'facebook': return <svg className={cls} viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.07C24 5.4 18.63 0 12 0S0 5.4 0 12.07C0 18.1 4.39 23.1 10.13 24v-8.44H7.08v-3.49h3.05V9.41c0-3.02 1.79-4.69 4.53-4.69 1.31 0 2.68.24 2.68.24v2.97h-1.51c-1.49 0-1.96.93-1.96 1.89v2.25h3.33l-.53 3.49h-2.8V24C19.61 23.1 24 18.1 24 12.07z"/></svg>;
-    case 'instagram': return <svg className={cls} viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.16c3.2 0 3.58.01 4.85.07 1.17.05 1.8.25 2.23.41.56.22.96.48 1.38.9.42.42.68.82.9 1.38.16.42.36 1.06.41 2.23.06 1.27.07 1.65.07 4.85s-.01 3.58-.07 4.85c-.05 1.17-.25 1.8-.41 2.23-.22.56-.48.96-.9 1.38-.42.42-.82.68-1.38.9-.42.16-1.06.36-2.23.41-1.27.06-1.65.07-4.85.07s-3.58-.01-4.85-.07c-1.17-.05-1.8-.25-2.23-.41a3.7 3.7 0 0 1-1.38-.9 3.7 3.7 0 0 1-.9-1.38c-.16-.42-.36-1.06-.41-2.23-.06-1.27-.07-1.65-.07-4.85s.01-3.58.07-4.85c.05-1.17.25-1.8.41-2.23.22-.56.48-.96.9-1.38.42-.42.82-.68 1.38-.9.42-.16 1.06-.36 2.23-.41 1.27-.06 1.65-.07 4.85-.07M12 0C8.74 0 8.33.01 7.05.07 5.78.13 4.9.33 4.14.63c-.79.31-1.46.72-2.12 1.38C1.36 2.67.95 3.34.63 4.13c-.3.76-.5 1.64-.56 2.91C.01 8.33 0 8.74 0 12s.01 3.67.07 4.95c.06 1.27.26 2.15.56 2.91.31.79.72 1.46 1.38 2.12.66.66 1.33 1.07 2.12 1.38.76.3 1.64.5 2.91.56C8.33 23.99 8.74 24 12 24s3.67-.01 4.95-.07c1.27-.06 2.15-.26 2.91-.56a5.9 5.9 0 0 0 2.12-1.38 5.9 5.9 0 0 0 1.38-2.12c.3-.76.5-1.64.56-2.91.06-1.28.07-1.69.07-4.95s-.01-3.67-.07-4.95c-.06-1.27-.26-2.15-.56-2.91a5.9 5.9 0 0 0-1.38-2.12A5.9 5.9 0 0 0 19.86.63c-.76-.3-1.64-.5-2.91-.56C15.67.01 15.26 0 12 0zm0 5.84a6.16 6.16 0 1 0 0 12.32 6.16 6.16 0 0 0 0-12.32zM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.41-11.85a1.44 1.44 0 1 0 0 2.88 1.44 1.44 0 0 0 0-2.88z"/></svg>;
-    case 'whatsapp': return <svg className={cls} viewBox="0 0 24 24" fill="currentColor"><path d="M17.47 14.38c-.3-.15-1.77-.87-2.04-.97-.27-.1-.47-.15-.67.15-.2.3-.77.97-.94 1.17-.17.2-.35.22-.65.07-.3-.15-1.26-.46-2.4-1.48-.89-.79-1.49-1.77-1.66-2.07-.17-.3-.02-.46.13-.61.14-.14.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.02-.52-.07-.15-.67-1.62-.92-2.22-.24-.58-.49-.5-.67-.51l-.57-.01c-.2 0-.52.07-.8.37-.27.3-1.04 1.02-1.04 2.48 0 1.46 1.07 2.87 1.22 3.07.15.2 2.1 3.2 5.08 4.49.71.31 1.26.49 1.69.63.71.23 1.36.2 1.87.12.57-.09 1.77-.72 2.02-1.42.25-.7.25-1.3.17-1.42-.07-.12-.27-.2-.57-.35zM12.04 21.5h-.01a9.5 9.5 0 0 1-4.84-1.32l-.35-.2-3.6.94.96-3.51-.23-.36a9.5 9.5 0 1 1 8.06 4.45zM20.5 3.49A11.45 11.45 0 0 0 12.04 0C5.46 0 .1 5.36.1 11.94c0 2.1.55 4.16 1.6 5.97L0 24l6.2-1.62a11.93 11.93 0 0 0 5.84 1.49h.01c6.58 0 11.94-5.36 11.94-11.94 0-3.19-1.24-6.19-3.49-8.44z"/></svg>;
-    default: return null;
-  }
+// ----------------------------------------------------------------------------
+// Stat card (glass)
+// ----------------------------------------------------------------------------
+function StatCard({ stat, index }: { stat: Stat; index: number }) {
+  const Icon = stat.icon;
+  return (
+    <div
+      className="glass-card group flex flex-col items-center gap-2 rounded-3xl p-6 text-center transition-all duration-500 hover:-translate-y-1 hover:shadow-glow"
+      style={{ animationDelay: `${index * 100}ms` }}
+    >
+      <span className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-gold-200 to-blush-200 text-gold-600 transition-transform duration-500 group-hover:scale-110">
+        <Icon className="h-7 w-7" />
+      </span>
+      <span className="premium-gradient-text text-3xl font-extrabold tracking-tight sm:text-4xl">
+        {stat.value}
+      </span>
+      <span className="text-xs font-medium text-beige-500 sm:text-sm">{stat.label}</span>
+    </div>
+  );
+}
+
+// ----------------------------------------------------------------------------
+// AboutPage
+// ----------------------------------------------------------------------------
+export default function AboutPage() {
+  const { navigate } = useRouter();
+
+  return (
+    <div
+      dir="rtl"
+      lang="ar"
+      className="relative min-h-screen overflow-hidden bg-gradient-to-b from-blush-50/40 via-white to-lavender-50/30"
+    >
+      <GlowOrbs />
+
+      <div className="relative z-10 mx-auto max-w-4xl px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
+        {/* ---------------------------------------------------------------- */}
+        {/* Title                                                            */}
+        {/* ---------------------------------------------------------------- */}
+        <header className="mb-12 text-center">
+          <h1 className="premium-gradient-text text-4xl font-extrabold tracking-tight sm:text-5xl">
+            من نحن
+          </h1>
+        </header>
+
+        {/* ---------------------------------------------------------------- */}
+        {/* Hero                                                             */}
+        {/* ---------------------------------------------------------------- */}
+        <section className="mb-16 flex flex-col items-center text-center">
+          {/* Logo — gradient circle with "س" */}
+          <div className="relative mb-6">
+            <div className="absolute inset-0 animate-pulse rounded-full bg-gradient-to-br from-blush-400/40 to-lavender-400/40 blur-2xl" aria-hidden="true" />
+            <div className="relative flex h-28 w-28 items-center justify-center rounded-full bg-gradient-to-br from-blush-400 via-lavender-400 to-gold-400 shadow-glow sm:h-32 sm:w-32">
+              <span className="text-5xl font-extrabold text-white drop-shadow-md sm:text-6xl">س</span>
+            </div>
+          </div>
+
+          <h2 className="text-3xl font-extrabold tracking-tight text-beige-800 sm:text-4xl">
+            اسكربك
+          </h2>
+          <p className="mt-3 text-base font-medium text-blush-500 sm:text-lg">
+            يونيفورمات طبية فاخرة
+          </p>
+        </section>
+
+        {/* ---------------------------------------------------------------- */}
+        {/* About text                                                      */}
+        {/* ---------------------------------------------------------------- */}
+        <section className="mb-16 space-y-6">
+          <div className="glass-card rounded-3xl p-6 leading-relaxed text-beige-700 sm:p-8 sm:text-lg">
+            <p>
+              <span className="font-bold text-blush-600">اسكربك</span> علامة تجارية مصرية وُلدت من
+              شغفنا بتوفير يونيفورمات طبية تجمع بين الفخامة والراحة العملية. نؤمن أن من يعالجون
+              ويرعون الآخرين يستحقون ملابس تليق بمهنتهم النبيلة، فصمّمنا مجموعاتنا بأقمشة منتقاة
+              بعناية تتحمل ساعات العمل الطويلة وتمنح حرية الحركة الكاملة.
+            </p>
+          </div>
+          <div className="glass-card rounded-3xl p-6 leading-relaxed text-beige-700 sm:p-8 sm:text-lg">
+            <p>
+              نخدم طيفاً واسعاً من الكوادر الطبية: <span className="font-semibold text-lavender-600">الأطباء</span>،
+              و<span className="font-semibold text-lavender-600">الممرضين</span>،
+              و<span className="font-semibold text-lavender-600">الصيادلة</span>،
+              و<span className="font-semibold text-lavender-600">أطباء الأسنان</span>،
+              و<span className="font-semibold text-lavender-600">طلاب الطب</span>. لكل فئة احتياجاتها،
+              ولكل مهنيّ ذوقه — لذلك نقدّم تشكيلة متنوعة من الألوان والقصات والمقاسات تناسب الجميع.
+            </p>
+          </div>
+          <div className="glass-card rounded-3xl p-6 leading-relaxed text-beige-700 sm:p-8 sm:text-lg">
+            <p>
+              من أول غرزة في القماش حتى آخر لمسة في التغليف، نحرص على أعلى معايير الجودة. هدفنا أن
+              يكون كل يونيفورم يصل إليك قطعة فاخرة تعزز ثقتك بنفسك وتمنحك إطلالة مهنية راقية يوم
+              بعد يوم.
+            </p>
+          </div>
+        </section>
+
+        {/* ---------------------------------------------------------------- */}
+        {/* Values                                                           */}
+        {/* ---------------------------------------------------------------- */}
+        <section className="mb-16">
+          <h2 className="premium-gradient-text mb-8 text-center text-2xl font-bold tracking-tight sm:text-3xl">
+            قيمنا
+          </h2>
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            {VALUES.map((value, i) => (
+              <ValueCard key={value.title} value={value} index={i} />
+            ))}
+          </div>
+        </section>
+
+        {/* ---------------------------------------------------------------- */}
+        {/* Stats                                                            */}
+        {/* ---------------------------------------------------------------- */}
+        <section className="mb-16">
+          <div className="grid grid-cols-2 gap-4 sm:gap-5 lg:grid-cols-4">
+            {STATS.map((stat, i) => (
+              <StatCard key={stat.label} stat={stat} index={i} />
+            ))}
+          </div>
+        </section>
+
+        {/* ---------------------------------------------------------------- */}
+        {/* Call to action                                                   */}
+        {/* ---------------------------------------------------------------- */}
+        <section className="glass-card flex flex-col items-center gap-5 rounded-3xl p-8 text-center sm:p-10">
+          <h2 className="text-2xl font-bold text-beige-800 sm:text-3xl">
+            اكتشف مجموعتنا الفاخرة
+          </h2>
+          <p className="max-w-md text-sm leading-relaxed text-beige-600 sm:text-base">
+            تصفّح تشكيلتنا الكاملة من اليونيفورمات الطبية واختر ما يناسب مهنتك وذوقك.
+          </p>
+          <button
+            type="button"
+            onClick={() => navigate('/store')}
+            className="inline-flex items-center gap-2 rounded-full bg-gradient-to-l from-blush-500 to-lavender-500 px-8 py-3.5 text-base font-bold text-white shadow-lg shadow-blush-500/30 transition-transform duration-200 hover:scale-105 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-blush-400/60"
+          >
+            تصفح المتجر
+            <ArrowLeftIcon className="h-5 w-5" />
+          </button>
+        </section>
+      </div>
+    </div>
+  );
 }

@@ -30,7 +30,11 @@ export function useRouter() {
     window.location.hash = to;
   }, []);
 
-  return { ...currentState, navigate };
+  const push = useCallback((to: string) => {
+    window.location.hash = to;
+  }, []);
+
+  return { ...currentState, navigate, push };
 }
 
 export function RouterProvider({ children }: { children: React.ReactNode }) {

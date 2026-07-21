@@ -120,26 +120,24 @@ export default function ProfilePage() {
         )}
 
         {tab === 'orders' && (
-          <div>
-            {orders.length === 0 ? (
-              <div className="glass-card rounded-3xl p-12 text-center text-beige-600">لا توجد طلبات</div>
-            ) : (
-              <div className="space-y-3">
-                {orders.map((o, i) => (
-                  <div key={o.id} className="glass-card rounded-3xl p-4 animate-fade-in-up" style={{ animationDelay: `${i * 50}ms`, opacity: 0 }}>
-                    <div className="flex items-center justify-between mb-2">
-                      <div><div className="font-bold text-beige-900">{o.order_number}</div><div className="text-xs text-beige-600">{new Date(o.created_at).toLocaleDateString('ar')}</div></div>
-                      <span className="font-bold text-blush-600">{Number(o.total_amount).toFixed(0)} ج.م</span>
-                    </div>
-                    <div className="flex gap-2 mt-2">
-                      <button onClick={() => navigate('/track')} className="flex-1 glass rounded-full py-2 text-xs font-bold text-beige-700 hover:bg-white/70 transition-colors">تتبع</button>
-                      <button onClick={async () => { const items = await fetchOrderItems(o.id); for (const it of items) await addToCart({ product_id: it.product_id, quantity: it.quantity }); navigate('/cart'); }} className="flex-1 glass rounded-full py-2 text-xs font-bold text-blush-600 hover:bg-white/70 transition-colors">إعادة الطلب</button>
-                    </div>
+          orders.length === 0 ? (
+            <div className="glass-card rounded-3xl p-12 text-center text-beige-600">لا توجد طلبات</div>
+          ) : (
+            <div className="space-y-3">
+              {orders.map((o, i) => (
+                <div key={o.id} className="glass-card rounded-3xl p-4 animate-fade-in-up" style={{ animationDelay: `${i * 50}ms`, opacity: 0 }}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div><div className="font-bold text-beige-900">{o.order_number}</div><div className="text-xs text-beige-600">{new Date(o.created_at).toLocaleDateString('ar')}</div></div>
+                    <span className="font-bold text-blush-600">{Number(o.total_amount).toFixed(0)} ج.م</span>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
+                  <div className="flex gap-2 mt-2">
+                    <button onClick={() => navigate('/track')} className="flex-1 glass rounded-full py-2 text-xs font-bold text-beige-700 hover:bg-white/70 transition-colors">تتبع</button>
+                    <button onClick={async () => { const items = await fetchOrderItems(o.id); for (const it of items) await addToCart({ product_id: it.product_id, quantity: it.quantity }); navigate('/cart'); }} className="flex-1 glass rounded-full py-2 text-xs font-bold text-blush-600 hover:bg-white/70 transition-colors">إعادة الطلب</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
         )}
 
         {tab === 'favorites' && (

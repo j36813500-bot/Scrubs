@@ -9,12 +9,16 @@ export type Product = {
   collection_ar: string | null;
   image_url: string;
   gallery_urls: string[];
-  category_id: string | null;
-  fabric_id: string | null;
-  is_featured: boolean;
-  in_stock: boolean;
   rating: number;
   rating_count: number;
+  in_stock: boolean;
+  wash_instructions_ar: string | null;
+  specifications_ar: string | null;
+  size_guide_ar: string | null;
+  is_featured: boolean;
+  sort_order: number;
+  category_id: string | null;
+  fabric_id: string | null;
   created_at: string;
 };
 
@@ -24,6 +28,29 @@ export type Category = {
   slug: string;
   description_ar: string | null;
   icon: string | null;
+  sort_order: number;
+};
+
+export type Fabric = {
+  id: string;
+  name_ar: string;
+  composition_ar: string | null;
+  description_ar: string | null;
+};
+
+export type ProductColor = {
+  id: string;
+  product_id: string;
+  name_ar: string;
+  hex_code: string;
+  image_url: string | null;
+  sort_order: number;
+};
+
+export type ProductSize = {
+  id: string;
+  product_id: string;
+  size_label: string;
   sort_order: number;
 };
 
@@ -62,6 +89,7 @@ export type Order = {
   status: string;
   tracking_number: string | null;
   payment_method: string | null;
+  notes_ar: string | null;
   user_id: string | null;
   created_at: string;
 };
@@ -87,5 +115,67 @@ export type SavedAddress = {
   address_ar: string;
   city_ar: string;
   is_default: boolean;
+  created_at: string;
+};
+
+export type FAQ = {
+  id: string;
+  question_ar: string;
+  answer_ar: string;
+  sort_order: number;
+};
+
+export type Banner = {
+  id: string;
+  title_ar: string;
+  subtitle_ar: string;
+  image_url: string;
+  cta_text_ar: string;
+  cta_link: string;
+  sort_order: number;
+  is_active: boolean;
+};
+
+export type SocialLink = {
+  id: string;
+  platform: string;
+  label_ar: string;
+  url: string;
+  icon: string;
+  color_hex: string;
+  sort_order: number;
+};
+
+export type Setting = {
+  key: string;
+  value_ar: string;
+};
+
+export type SupportMessage = {
+  id: string;
+  conversation_id: string;
+  sender_type: 'customer' | 'agent';
+  content_ar: string;
+  attachment_url: string | null;
+  created_at: string;
+};
+
+export type SupportConversation = {
+  id: string;
+  status: string;
+  agent_name: string | null;
+  agent_status: string | null;
+  last_seen_at: string | null;
+  summary_ar: string | null;
+  created_at: string;
+  updated_at: string;
+  messages?: SupportMessage[];
+};
+
+export type Notification = {
+  id: string;
+  title_ar: string;
+  body_ar: string;
+  is_read: boolean;
   created_at: string;
 };

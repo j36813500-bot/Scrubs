@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { useRouter } from '../lib/router';
 import { signInCustomer, signUpCustomer, onAuthChange, type AppUser } from '../lib/auth';
 
 export default function AuthGateModal({
