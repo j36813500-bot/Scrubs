@@ -115,6 +115,13 @@ export default function Navbar() {
                 )}
               </button>
               <button
+                onClick={() => go('/auth')}
+                className="w-10 h-10 rounded-full bg-white/50 hover:bg-white/80 flex items-center justify-center transition-all hover:scale-110"
+                aria-label="حسابي"
+              >
+                <UserIcon className="w-5 h-5 text-blush-600" />
+              </button>
+              <button
                 onClick={() => setMenuOpen(true)}
                 className="lg:hidden w-10 h-10 rounded-full bg-white/50 hover:bg-white/80 flex items-center justify-center transition-all"
                 aria-label="القائمة"
@@ -151,6 +158,12 @@ export default function Navbar() {
                   {item.label}
                 </button>
               ))}
+              <button
+                onClick={() => go('/auth')}
+                className="w-full text-right px-4 py-3 rounded-2xl text-sm font-semibold transition-all bg-gradient-to-r from-gold-200 to-blush-200 text-blush-900"
+              >
+                الإدارة
+              </button>
             </div>
           </div>
         </div>
@@ -174,6 +187,10 @@ function CartIcon({ className }: { className?: string }) {
     </svg>
   );
 }
+function UserIcon({ className }: { className?: string }) {
+  return <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>;
+}
+
 function MenuIcon({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

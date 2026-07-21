@@ -283,3 +283,116 @@ export async function fetchSettings(): Promise<Record<string, string>> {
   (data || []).forEach((s: { key: string; value_ar: string }) => { map[s.key] = s.value_ar; });
   return map;
 }
+
+// ---------- Admin: Orders ----------
+
+export async function fetchAllOrders(): Promise<Order[]> {
+  const { data, error } = await supabase
+    .from('orders')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data || []) as Order[];
+}
+
+export async function updateOrderStatus(orderId: string, status: string): Promise<void> {
+  const { error } = await supabase.from('orders').update({ status }).eq('id', orderId);
+  if (error) throw error;
+}
+
+export async function fetchAllOrderItems(orderId: string): Promise<OrderItem[]> {
+  const { data, error } = await supabase
+    .from('order_items')
+    .select('*, product:products(image_url, gallery_urls)')
+    .eq('order_id', orderId);
+  if (error) throw error;
+  return (data || []) as unknown as OrderItem[];
+}
+
+export async function fetchOrderFeedback(orderId: string): Promise<{ rating: number; review: string; experience: string } | null> {
+  const { data, error } = await supabase
+    .from('order_feedback')
+    .select('rating, review, experience')
+    .eq('order_id', orderId)
+    .maybeSingle();
+  if (error) throw error;
+  return data as { rating: number; review: string; experience: string } | null;
+}
+
+export async function fetchAllFeedback(): Promise<{ id: string; order_id: string; rating: number; review: string; experience: string; created_at: string; order?: { order_number: string; customer_name: string } }[]> {
+  const { data, error } = await supabase
+    .from('order_feedback')
+    .select('*, order:orders(order_number, customer_name)')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data || []) as any;
+}
+
+// ---------- Admin: Products ----------
+
+export async function createProduct(p: {
+  name_ar: string; slug: string; description_ar?: string; price: number;
+  compare_at_price?: number; gender: string; collection_ar?: string;
+  image_url: string; gallery_urls: string[]; category_id?: string;
+  is_featured?: boolean; in_stock?: boolean;
+}): Promise<Product> {
+  const { data, error } = await supabase.from('products').insert({
+    name_ar: p.name_ar,
+    slug: p.slug,
+    description_ar: p.description_ar || null,
+    price: p.price,
+    compare_at_price: p.compare_at_price || null,
+    gender: p.gender,
+    collection_ar: p.collection_ar || null,
+    image_url: p.image_url,
+    gallery_urls: p.gallery_urls,
+    category_id: p.category_id || null,
+    is_featured: p.is_featured || false,
+    in_stock: p.in_stock !== false,
+    rating: 0,
+    rating_count: 0,
+  }).select().single();
+  if (error) throw error;
+  return data as Product;
+}
+
+export async function updateProduct(id: string, updates: Partial<Product>): Promise<void> {
+  const { error } = await supabase.from('products').update(updates).eq('id', id);
+  if (error) throw error;
+}
+
+export async function deleteProduct(id: string): Promise<void> {
+  const { error } = await supabase.from('products').delete().eq('id', id);
+  if (error) throw error;
+}
+
+export async function createCategory(name_ar: string, slug: string, icon?: string): Promise<Category> {
+  const { data, error } = await supabase.from('categories').insert({
+    name_ar,
+    slug,
+    icon: icon || 'cross',
+    sort_order: 999,
+  }).select().single();
+  if (error) throw error;
+  return data as Category;
+}
+
+// ---------- Customer: Feedback ----------
+
+export async function submitOrderFeedback(orderId: string, rating: number, review: string, experience: string): Promise<void> {
+  const { error } = await supabase.from('order_feedback').insert({
+    order_id: orderId,
+    rating,
+    review,
+    experience,
+  });
+  if (error) throw error;
+}
+
+export async function fetchCustomerOrders(): Promise<Order[]> {
+  return withGuestContext(async () => {
+    const { data, error } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
+    if (error) throw error;
+    return (data || []) as Order[];
+  });
+}

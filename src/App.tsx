@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { RouterProvider, useRouter } from './lib/router';
+import { initAuth } from './lib/auth';
 import CinematicBackground from './components/CinematicBackground';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
@@ -14,6 +15,13 @@ import AboutPage from './pages/AboutPage';
 import SupportPage from './pages/SupportPage';
 import FaqPage from './pages/FaqPage';
 import PolicyPage from './pages/PolicyPage';
+import AuthPage from './pages/AuthPage';
+import AdminLayout from './pages/admin/AdminLayout';
+import AdminOrders from './pages/admin/AdminOrders';
+import AdminSales from './pages/admin/AdminSales';
+import AdminProducts from './pages/admin/AdminProducts';
+import AdminFeedback from './pages/admin/AdminFeedback';
+import FeedbackPage from './pages/FeedbackPage';
 
 function Routes() {
   const { path } = useRouter();
@@ -38,6 +46,12 @@ function Routes() {
     if (path === '/returns') return <PolicyPage type="returns" />;
     if (path === '/privacy') return <PolicyPage type="privacy" />;
     if (path === '/terms') return <PolicyPage type="terms" />;
+    if (path === '/auth') return <AuthPage />;
+    if (path === '/feedback') return <FeedbackPage />;
+    if (path === '/admin' || path === '/admin/orders') return <AdminLayout><AdminOrders /></AdminLayout>;
+    if (path === '/admin/sales') return <AdminLayout><AdminSales /></AdminLayout>;
+    if (path === '/admin/products') return <AdminLayout><AdminProducts /></AdminLayout>;
+    if (path === '/admin/feedback') return <AdminLayout><AdminFeedback /></AdminLayout>;
     return (
       <div className="pt-28 px-4 text-center">
         <div className="glass-card rounded-3xl p-12 max-w-md mx-auto">
@@ -76,6 +90,7 @@ function Routes() {
 }
 
 export default function App() {
+  useEffect(() => { initAuth(); }, []);
   return (
     <RouterProvider>
       <Routes />

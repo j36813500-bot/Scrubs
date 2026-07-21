@@ -9,13 +9,19 @@ export default function Cinematic3DViewer({ product, onClose }: { product: Produ
   const [rotation, setRotation] = useState(0);
   const [zoom, setZoom] = useState(1);
   const [lit, setLit] = useState(false);
+  const [imgIdx, setImgIdx] = useState(0);
+  const [fading, setFading] = useState(false);
   const rafRef = useRef(0);
   const rotRef = useRef(0);
   const zoomRef = useRef(1);
+  const imgIdxRef = useRef(0);
+  const fullRotationsRef = useRef(0);
   const stageRef = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
   const lastX = useRef(0);
   const manualOffset = useRef(0);
+
+  const images = (product.gallery_urls?.length ? product.gallery_urls : [product.image_url]).slice(0, 3);
 
   // Entrance / exit animation phases
   useEffect(() => {
@@ -31,15 +37,25 @@ export default function Cinematic3DViewer({ product, onClose }: { product: Produ
     };
   }, []);
 
-  // Endless seamless rotation via requestAnimationFrame — no restart, no loop seam.
+  // Endless seamless rotation via requestAnimationFrame — cycles through images after each full 360°.
   useEffect(() => {
     let last = performance.now();
     const tick = (now: number) => {
       const dt = (now - last) / 1000;
       last = now;
       if (!dragging.current) {
-        // continuous rotation: 12 degrees per second
         rotRef.current += 12 * dt;
+        // Detect full 360° rotation to advance image
+        const currentFull = Math.floor(Math.abs(rotRef.current) / 360);
+        if (currentFull > fullRotationsRef.current) {
+          fullRotationsRef.current = currentFull;
+          setFading(true);
+          setTimeout(() => {
+            imgIdxRef.current = (imgIdxRef.current + 1) % images.length;
+            setImgIdx(imgIdxRef.current);
+            setFading(false);
+          }, 400);
+        }
       }
       setRotation(rotRef.current);
       setZoom(zoomRef.current);
@@ -47,7 +63,7 @@ export default function Cinematic3DViewer({ product, onClose }: { product: Produ
     };
     rafRef.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafRef.current);
-  }, []);
+  }, [images.length]);
 
   const handleClose = () => {
     setPhase('exit');
@@ -177,13 +193,13 @@ export default function Cinematic3DViewer({ product, onClose }: { product: Produ
 
           {/* back face */}
           <div className="absolute inset-0 rounded-3xl overflow-hidden backface-hidden shadow-premium" style={{ transform: 'rotateY(180deg)', width: '280px', height: '380px' }}>
-            <img src={product.image_url} alt="" className="w-full h-full object-cover scale-x-[-1]" />
+            <img src={images[imgIdx]} alt="" className="w-full h-full object-cover scale-x-[-1] transition-opacity duration-400" style={{ opacity: fading ? 0 : 1 }} />
             <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
           </div>
 
           {/* front face */}
           <div className="relative rounded-3xl overflow-hidden backface-hidden shadow-premium" style={{ width: '280px', height: '380px' }}>
-            <img src={product.image_url} alt={product.name_ar} className="w-full h-full object-cover" />
+            <img src={images[imgIdx]} alt={product.name_ar} className="w-full h-full object-cover transition-opacity duration-400" style={{ opacity: fading ? 0 : 1 }} />
             {/* studio lighting overlay */}
             <div className="absolute inset-0 bg-gradient-to-t from-transparent via-transparent to-white/15" />
             <div className="absolute inset-0 bg-gradient-to-br from-blush-200/10 to-lavender-200/10" />
@@ -195,6 +211,13 @@ export default function Cinematic3DViewer({ product, onClose }: { product: Produ
                 animation: 'shimmerSweep 4s ease-in-out infinite',
               }}
             />
+          </div>
+
+          {/* image dots indicator */}
+          <div className="absolute -bottom-12 left-1/2 -translate-x-1/2 flex gap-2">
+            {images.map((_, i) => (
+              <div key={i} className={`w-2 h-2 rounded-full transition-all duration-300 ${i === imgIdx ? 'bg-blush-400 w-6' : 'bg-white/40'}`} />
+            ))}
           </div>
 
           {/* floating info chips */}
