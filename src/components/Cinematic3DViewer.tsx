@@ -11,6 +11,7 @@ export default function Cinematic3DViewer({ product, onClose }: { product: Produ
   const [lit, setLit] = useState(false);
   const [imgIdx, setImgIdx] = useState(0);
   const [fading, setFading] = useState(false);
+  const [sweepActive, setSweepActive] = useState(false);
   const rafRef = useRef(0);
   const rotRef = useRef(0);
   const zoomRef = useRef(1);
@@ -50,11 +51,13 @@ export default function Cinematic3DViewer({ product, onClose }: { product: Produ
         if (currentFull > fullRotationsRef.current) {
           fullRotationsRef.current = currentFull;
           setFading(true);
+          setSweepActive(true);
           setTimeout(() => {
             imgIdxRef.current = (imgIdxRef.current + 1) % images.length;
             setImgIdx(imgIdxRef.current);
             setFading(false);
           }, 400);
+          setTimeout(() => setSweepActive(false), 1200);
         }
       }
       setRotation(rotRef.current);
@@ -211,6 +214,16 @@ export default function Cinematic3DViewer({ product, onClose }: { product: Produ
                 animation: 'shimmerSweep 4s ease-in-out infinite',
               }}
             />
+            {/* cinematic transition sweep */}
+            {sweepActive && (
+              <div
+                className="absolute inset-0 pointer-events-none"
+                style={{
+                  background: 'linear-gradient(110deg, transparent 0%, rgba(255,255,255,0.6) 50%, transparent 100%)',
+                  animation: 'cinematicSweep 1.2s ease-out forwards',
+                }}
+              />
+            )}
           </div>
 
           {/* image dots indicator */}
@@ -275,6 +288,11 @@ export default function Cinematic3DViewer({ product, onClose }: { product: Produ
         @keyframes shimmerSweep {
           0%, 100% { transform: translateX(-100%); opacity: 0; }
           50% { transform: translateX(100%); opacity: 1; }
+        }
+        @keyframes cinematicSweep {
+          0% { transform: translateX(-100%); opacity: 0; }
+          50% { opacity: 1; }
+          100% { transform: translateX(100%); opacity: 0; }
         }
       `}</style>
     </div>

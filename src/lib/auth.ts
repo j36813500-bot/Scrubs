@@ -7,6 +7,7 @@ export type AppUser = {
   phone: string;
   role: 'admin' | 'customer';
   admin_username: string | null;
+  avatar_url: string | null;
 };
 
 let currentUser: AppUser | null = null;
@@ -41,7 +42,7 @@ async function loadProfile(userId: string, email: string) {
   try {
     const { data } = await supabase
       .from('profiles')
-      .select('full_name, phone, role, admin_username')
+      .select('full_name, phone, role, admin_username, avatar_url')
       .eq('id', userId)
       .single();
     currentUser = {
@@ -51,9 +52,10 @@ async function loadProfile(userId: string, email: string) {
       phone: data?.phone || '',
       role: (data?.role as 'admin' | 'customer') || 'customer',
       admin_username: data?.admin_username || null,
+      avatar_url: data?.avatar_url || null,
     };
   } catch {
-    currentUser = { id: userId, email, full_name: '', phone: '', role: 'customer', admin_username: null };
+    currentUser = { id: userId, email, full_name: '', phone: '', role: 'customer', admin_username: null, avatar_url: null };
   }
   emit();
 }
@@ -105,4 +107,34 @@ export async function signOut() {
   await supabase.auth.signOut();
   currentUser = null;
   emit();
+}
+
+export async function updateProfile(updates: { full_name?: string; phone?: string; avatar_url?: string }): Promise<{ error: string | null }> {
+  if (!currentUser) return { error: 'غير مسجل' };
+  const { error } = await supabase
+    .from('profiles')
+    .update(updates)
+    .eq('id', currentUser.id);
+  if (error) return { error: error.message };
+  currentUser = { ...currentUser, ...updates };
+  emit();
+  return { error: null };
+}
+
+export async function changePassword(newPassword: string): Promise<{ error: string | null }> {
+  const { error } = await supabase.auth.updateUser({ password: newPassword });
+  if (error) return { error: error.message };
+  return { error: null };
+}
+
+export async function uploadAvatar(file: File): Promise<{ url: string | null; error: string | null }> {
+  if (!currentUser) return { url: null, error: 'غير مسجل' };
+  const ext = file.name.split('.').pop() || 'jpg';
+  const path = `avatars/${currentUser.id}.${ext}`;
+  const { error: upErr } = await supabase.storage
+    .from('customer-avatars')
+    .upload(path, file, { upsert: true });
+  if (upErr) return { url: null, error: upErr.message };
+  const { data } = supabase.storage.from('customer-avatars').getPublicUrl(path);
+  return { url: data.publicUrl, error: null };
 }

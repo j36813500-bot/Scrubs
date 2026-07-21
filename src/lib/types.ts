@@ -91,8 +91,22 @@ export type Order = {
   shipping_address_ar: string;
   city_ar: string;
   total_amount: number;
-  status: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled';
+  status: 'pending' | 'confirmed' | 'preparing' | 'shipped' | 'out_for_delivery' | 'delivered' | 'cancelled' | 'incoming' | 'shipping_soon';
   tracking_number: string | null;
+  payment_method: string | null;
+  user_id: string | null;
+  created_at: string;
+};
+
+export type SavedAddress = {
+  id: string;
+  user_id: string;
+  label: string;
+  recipient_name: string;
+  phone: string;
+  address_ar: string;
+  city_ar: string;
+  is_default: boolean;
   created_at: string;
 };
 

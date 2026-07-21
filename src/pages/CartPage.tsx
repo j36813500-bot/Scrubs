@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from '../lib/router';
 import { fetchCart, updateCartQuantity, removeFromCart, createOrder } from '../lib/api';
+import { getUser, onAuthChange, type AppUser } from '../lib/auth';
 import type { CartItem } from '../lib/types';
+import AuthGateModal from '../components/AuthGateModal';
 
 export default function CartPage() {
   const { navigate } = useRouter();
@@ -11,6 +13,13 @@ export default function CartPage() {
   const [placing, setPlacing] = useState(false);
   const [done, setDone] = useState<string | null>(null);
   const [form, setForm] = useState({ name: '', phone: '', email: '', address: '', city: '', notes: '' });
+  const [showAuth, setShowAuth] = useState(false);
+  const [user, setUser] = useState<AppUser | null>(null);
+
+  useEffect(() => {
+    const unsub = onAuthChange(u => setUser(u));
+    return unsub;
+  }, []);
 
   const load = async () => {
     setLoading(true);
@@ -55,6 +64,17 @@ export default function CartPage() {
       setItems([]);
     } catch { /* ignore */ }
     setPlacing(false);
+  };
+
+  const startCheckout = () => {
+    if (!getUser()) {
+      setShowAuth(true);
+      return;
+    }
+    if (user) {
+      setForm(f => ({ ...f, name: user.full_name, phone: user.phone }));
+    }
+    setCheckout(c => !c);
   };
 
   if (done) {
@@ -125,7 +145,7 @@ export default function CartPage() {
                 <div className="flex justify-between text-beige-700"><span>الشحن</span><span>{total >= 2000 ? 'مجاني' : '60 ج.م'}</span></div>
                 <div className="border-t border-white/40 pt-2 flex justify-between font-bold text-beige-900"><span>الإجمالي</span><span>{(total + (total >= 2000 ? 0 : 60)).toFixed(0)} ج.م</span></div>
               </div>
-              <button onClick={() => setCheckout(c => !c)} className="btn-premium w-full mb-2">
+              <button onClick={startCheckout} className="btn-premium w-full mb-2">
                 {checkout ? 'إغلاق' : 'إتمام الشراء'}
               </button>
 
@@ -146,6 +166,16 @@ export default function CartPage() {
           </div>
         )}
       </div>
+      <AuthGateModal
+        open={showAuth}
+        onClose={() => setShowAuth(false)}
+        onAuthenticated={() => {
+          setShowAuth(false);
+          setCheckout(true);
+        }}
+        title="سجّل الدخول لإتمام الطلب"
+        subtitle="يمكنك التصفح بحرية، فقط سجّل الدخول عند الشراء"
+      />
     </div>
   );
 }

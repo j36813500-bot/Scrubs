@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from '../lib/router';
 import { fetchCart, fetchFavorites } from '../lib/api';
+import { onAuthChange, type AppUser } from '../lib/auth';
 
 const NAV = [
   { label: 'الرئيسية', to: '/' },
@@ -23,6 +24,12 @@ export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [cartCount, setCartCount] = useState(0);
   const [favCount, setFavCount] = useState(0);
+  const [user, setUser] = useState<AppUser | null>(null);
+
+  useEffect(() => {
+    const unsub = onAuthChange(u => setUser(u));
+    return unsub;
+  }, []);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
@@ -115,11 +122,15 @@ export default function Navbar() {
                 )}
               </button>
               <button
-                onClick={() => go('/auth')}
-                className="w-10 h-10 rounded-full bg-white/50 hover:bg-white/80 flex items-center justify-center transition-all hover:scale-110"
+                onClick={() => go(user ? '/profile' : '/auth')}
+                className="relative w-10 h-10 rounded-full bg-white/50 hover:bg-white/80 flex items-center justify-center transition-all hover:scale-110"
                 aria-label="حسابي"
               >
-                <UserIcon className="w-5 h-5 text-blush-600" />
+                {user?.avatar_url ? (
+                  <img src={user.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover" />
+                ) : (
+                  <UserIcon className="w-5 h-5 text-blush-600" />
+                )}
               </button>
               <button
                 onClick={() => setMenuOpen(true)}
@@ -159,10 +170,10 @@ export default function Navbar() {
                 </button>
               ))}
               <button
-                onClick={() => go('/auth')}
+                onClick={() => go(user ? '/profile' : '/auth')}
                 className="w-full text-right px-4 py-3 rounded-2xl text-sm font-semibold transition-all bg-gradient-to-r from-gold-200 to-blush-200 text-blush-900"
               >
-                الإدارة
+                {user ? 'حسابي' : 'تسجيل الدخول / الإدارة'}
               </button>
             </div>
           </div>

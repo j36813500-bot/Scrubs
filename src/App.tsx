@@ -16,6 +16,7 @@ import SupportPage from './pages/SupportPage';
 import FaqPage from './pages/FaqPage';
 import PolicyPage from './pages/PolicyPage';
 import AuthPage from './pages/AuthPage';
+import ProfilePage from './pages/ProfilePage';
 import AdminLayout from './pages/admin/AdminLayout';
 import AdminOrders from './pages/admin/AdminOrders';
 import AdminSales from './pages/admin/AdminSales';
@@ -47,6 +48,7 @@ function Routes() {
     if (path === '/privacy') return <PolicyPage type="privacy" />;
     if (path === '/terms') return <PolicyPage type="terms" />;
     if (path === '/auth') return <AuthPage />;
+    if (path === '/profile') return <ProfilePage />;
     if (path === '/feedback') return <FeedbackPage />;
     if (path === '/admin' || path === '/admin/orders') return <AdminLayout><AdminOrders /></AdminLayout>;
     if (path === '/admin/sales') return <AdminLayout><AdminSales /></AdminLayout>;

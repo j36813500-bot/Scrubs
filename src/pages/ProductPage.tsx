@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from '../lib/router';
 import { fetchProductBySlug, fetchRelatedProducts, fetchReviews, addReview, addToCart } from '../lib/api';
+import { getUser } from '../lib/auth';
 import type { Product, Review } from '../lib/types';
 import ProductCard from '../components/ProductCard';
 import Cinematic3DViewer from '../components/Cinematic3DViewer';
+import AuthGateModal from '../components/AuthGateModal';
 
 export default function ProductPage() {
   const { path, navigate } = useRouter();
@@ -19,6 +21,8 @@ export default function ProductPage() {
   const [adding, setAdding] = useState(false);
   const [added, setAdded] = useState(false);
   const [show3D, setShow3D] = useState(false);
+  const [showAuth, setShowAuth] = useState(false);
+  const [pendingBuyNow, setPendingBuyNow] = useState(false);
 
   // 3D mannequin rotation
   const stageRef = useRef<HTMLDivElement>(null);
@@ -71,6 +75,11 @@ export default function ProductPage() {
 
   const handleAdd = async (buyNow = false) => {
     if (!product) return;
+    if (!getUser()) {
+      setPendingBuyNow(buyNow);
+      setShowAuth(true);
+      return;
+    }
     setAdding(true);
     try {
       await addToCart({
@@ -82,6 +91,24 @@ export default function ProductPage() {
       setAdded(true);
       setTimeout(() => setAdded(false), 2000);
       if (buyNow) navigate('/cart');
+    } catch { /* ignore */ }
+    setAdding(false);
+  };
+
+  const proceedAfterAuth = async () => {
+    setShowAuth(false);
+    if (!product) return;
+    setAdding(true);
+    try {
+      await addToCart({
+        product_id: product.id,
+        color_name_ar: selectedColor,
+        size_label: selectedSize,
+        quantity: qty,
+      });
+      setAdded(true);
+      setTimeout(() => setAdded(false), 2000);
+      if (pendingBuyNow) navigate('/cart');
     } catch { /* ignore */ }
     setAdding(false);
   };
@@ -334,6 +361,13 @@ export default function ProductPage() {
         )}
       </div>
       {show3D && product && <Cinematic3DViewer product={product} onClose={() => setShow3D(false)} />}
+      <AuthGateModal
+        open={showAuth}
+        onClose={() => setShowAuth(false)}
+        onAuthenticated={proceedAfterAuth}
+        title="سجّل الدخول لإضافة المنتج للسلة"
+        subtitle="يمكنك التصفح بحرية، فقط سجّل الدخول عند الشراء"
+      />
     </div>
   );
 }

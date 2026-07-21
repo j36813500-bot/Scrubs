@@ -1,7 +1,7 @@
 import { supabase, getGuestId, withGuestContext } from './supabase';
 import type {
   Product, Category, Fabric, Review, CartItem, Favorite, Order, OrderItem,
-  SupportConversation, SupportMessage, Faq, Banner, SocialLink,
+  SupportConversation, SupportMessage, Faq, Banner, SocialLink, SavedAddress,
 } from './types';
 
 // ---------- Catalog ----------
@@ -395,4 +395,30 @@ export async function fetchCustomerOrders(): Promise<Order[]> {
     if (error) throw error;
     return (data || []) as Order[];
   });
+}
+
+// ---------- Customer: Saved Addresses ----------
+
+export async function fetchAddresses(): Promise<SavedAddress[]> {
+  const { data, error } = await supabase
+    .from('saved_addresses')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data || []) as SavedAddress[];
+}
+
+export async function addAddress(a: { label: string; recipient_name: string; phone: string; address_ar: string; city_ar: string; is_default?: boolean }): Promise<void> {
+  const { error } = await supabase.from('saved_addresses').insert(a);
+  if (error) throw error;
+}
+
+export async function updateAddress(id: string, updates: Partial<SavedAddress>): Promise<void> {
+  const { error } = await supabase.from('saved_addresses').update(updates).eq('id', id);
+  if (error) throw error;
+}
+
+export async function deleteAddress(id: string): Promise<void> {
+  const { error } = await supabase.from('saved_addresses').delete().eq('id', id);
+  if (error) throw error;
 }
