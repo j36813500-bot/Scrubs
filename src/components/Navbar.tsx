@@ -1,71 +1,122 @@
-import { useEffect, useState } from 'react';
-import { useRouter } from '../lib/router';
-import { fetchCart } from '../lib/api';
-import { onAuthChange, type AppUser } from '../lib/auth';
-import SideNav from './SideNav';
-import BottomNav from './BottomNav';
+import { useEffect, useState } from 'react'
+import { useRouter } from '../lib/router'
+import SideNav from './SideNav'
+import BottomNav from './BottomNav'
 
-export default function Navbar() {
-  const { path, navigate } = useRouter();
-  const [cartCount, setCartCount] = useState(0);
-  const [favCount, setFavCount] = useState(0);
-  const [user, setUser] = useState<AppUser | null>(null);
-  const [sideNavOpen, setSideNavOpen] = useState(false);
+interface NavbarProps {
+  cartCount?: number
+  favoritesCount?: number
+}
+
+const navLinks = [
+  { label: 'الرئيسية', path: '/' },
+  { label: 'المتجر', path: '/store' },
+  { label: 'من نحن', path: '/about' },
+  { label: 'تواصل معنا', path: '/contact' },
+  { label: 'الأسئلة الشائعة', path: '/faq' },
+  { label: 'تتبع الطلب', path: '/track' },
+]
+
+export default function Navbar({ cartCount = 0, favoritesCount = 0 }: NavbarProps) {
+  const { path, navigate } = useRouter()
+  const [sideOpen, setSideOpen] = useState(false)
+  const [scrolled, setScrolled] = useState(false)
 
   useEffect(() => {
-    const unsub = onAuthChange(u => setUser(u));
-    return unsub;
-  }, []);
+    const onScroll = () => setScrolled(window.scrollY > 10)
+    window.addEventListener('scroll', onScroll)
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const cart = await fetchCart();
-        setCartCount(cart.length);
-      } catch { /* ignore */ }
-    })();
-  }, [path]);
-
-  const go = (to: string) => { navigate(to); setSideNavOpen(false); };
+  const isActive = (p: string) =>
+    p === '/' ? path === '/' : path.startsWith(p)
 
   return (
     <>
-      <header className="fixed top-0 inset-x-0 z-50 px-4 pt-4 hidden lg:block">
-        <nav className="mx-auto max-w-7xl glass-card rounded-full px-4 sm:px-6 py-3 flex items-center justify-between">
-          {/* Logo */}
-          <button onClick={() => go('/')} className="flex items-center gap-2">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blush-400 to-lavender-400 flex items-center justify-center shadow-glow">
-              <span className="text-white font-display font-bold text-lg">س</span>
+      {/* Desktop navbar */}
+      <header
+        className={`fixed top-0 inset-x-0 z-40 hidden lg:block transition-all duration-300 ${
+          scrolled ? 'glass shadow-premium' : 'bg-transparent'
+        }`}
+      >
+        <nav className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3">
+          {/* Brand */}
+          <button onClick={() => navigate('/')} className="flex items-center gap-2">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full glass shadow-premium">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="url(#navGrad)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <defs>
+                  <linearGradient id="navGrad" x1="0" y1="0" x2="24" y2="24">
+                    <stop offset="0%" stopColor="#e85c8a" />
+                    <stop offset="50%" stopColor="#916dba" />
+                    <stop offset="100%" stopColor="#f59e0b" />
+                  </linearGradient>
+                </defs>
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                <circle cx="12" cy="7" r="4" />
+              </svg>
             </div>
-            <span className="font-display font-black text-lg premium-gradient-text">اسكربك</span>
+            <span className="text-2xl font-extrabold premium-gradient-text">اسكربك</span>
           </button>
 
-          {/* Desktop nav */}
+          {/* Links */}
           <div className="flex items-center gap-1">
-            <NavLink to="/" label="الرئيسية" active={path === '/'} onClick={go} />
-            <NavLink to="/store" label="المتجر" active={path === '/store'} onClick={go} />
-            <NavLink to="/track" label="تتبع الطلب" active={path === '/track'} onClick={go} />
-            <NavLink to="/faq" label="الأسئلة الشائعة" active={path === '/faq'} onClick={go} />
-            <NavLink to="/support" label="الدعم" active={path === '/support'} onClick={go} />
-            <NavLink to="/about" label="من نحن" active={path === '/about'} onClick={go} />
-            <NavLink to="/contact" label="تواصل معنا" active={path === '/contact'} onClick={go} />
+            {navLinks.map((link) => (
+              <button
+                key={link.path}
+                onClick={() => navigate(link.path)}
+                className={`relative rounded-full px-4 py-2 text-sm font-bold transition-all duration-300 ${
+                  isActive(link.path)
+                    ? 'text-blush-600'
+                    : 'text-gray-600 hover:text-blush-600'
+                }`}
+              >
+                {link.label}
+                {isActive(link.path) && (
+                  <span className="absolute -bottom-0.5 left-1/2 h-0.5 w-6 -translate-x-1/2 rounded-full bg-gradient-to-r from-blush-500 to-lavender-500" />
+                )}
+              </button>
+            ))}
           </div>
 
           {/* Actions */}
           <div className="flex items-center gap-2">
-            <button onClick={() => go('/favorites')} className="relative w-10 h-10 rounded-full bg-white/50 hover:bg-white/80 flex items-center justify-center transition-all hover:scale-110">
-              <svg className="w-5 h-5 text-blush-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-              {favCount > 0 && <span className="absolute -top-1 -left-1 bg-lavender-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold">{favCount}</span>}
+            <button
+              onClick={() => navigate('/admin')}
+              className="btn-ghost flex items-center gap-1.5 text-sm"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              </svg>
+              الإدارة
             </button>
-            <button onClick={() => go('/cart')} className="relative w-10 h-10 rounded-full bg-white/50 hover:bg-white/80 flex items-center justify-center transition-all hover:scale-110">
-              <svg className="w-5 h-5 text-lavender-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
-              {cartCount > 0 && <span className="absolute -top-1 -left-1 bg-blush-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold">{cartCount}</span>}
+
+            <button
+              onClick={() => navigate('/favorites')}
+              className="relative rounded-full glass p-2.5 text-lavender-600 transition-all hover:shadow-premium"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+              </svg>
+              {favoritesCount > 0 && (
+                <span className="absolute -top-1 -left-1 flex h-4.5 min-w-[18px] items-center justify-center rounded-full bg-blush-600 px-1 text-[10px] font-extrabold text-white">
+                  {favoritesCount > 99 ? '99+' : favoritesCount}
+                </span>
+              )}
             </button>
-            <button onClick={() => go(user ? '/profile' : '/auth')} className="w-10 h-10 rounded-full bg-white/50 hover:bg-white/80 flex items-center justify-center transition-all hover:scale-110">
-              {user?.avatar_url ? (
-                <img src={user.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover" />
-              ) : (
-                <svg className="w-5 h-5 text-blush-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+
+            <button
+              onClick={() => navigate('/cart')}
+              className="relative rounded-full glass p-2.5 text-blush-600 transition-all hover:shadow-premium"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="9" cy="21" r="1" />
+                <circle cx="20" cy="21" r="1" />
+                <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
+              </svg>
+              {cartCount > 0 && (
+                <span className="absolute -top-1 -left-1 flex h-4.5 min-w-[18px] items-center justify-center rounded-full bg-blush-600 px-1 text-[10px] font-extrabold text-white shadow-glow">
+                  {cartCount > 99 ? '99+' : cartCount}
+                </span>
               )}
             </button>
           </div>
@@ -73,36 +124,59 @@ export default function Navbar() {
       </header>
 
       {/* Mobile top bar */}
-      <header className="fixed top-0 inset-x-0 z-50 px-4 pt-4 lg:hidden">
-        <nav className="glass-card rounded-full px-4 py-3 flex items-center justify-between">
-          <button onClick={() => go('/')} className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blush-400 to-lavender-400 flex items-center justify-center shadow-glow">
-              <span className="text-white font-display font-bold text-base">س</span>
-            </div>
-            <span className="font-display font-black text-base premium-gradient-text">اسكربك</span>
+      <header
+        className={`fixed top-0 inset-x-0 z-40 lg:hidden transition-all duration-300 ${
+          scrolled ? 'glass shadow-premium' : 'glass border-b border-white/30'
+        }`}
+      >
+        <div className="flex items-center justify-between px-4 py-3">
+          <button
+            onClick={() => setSideOpen(true)}
+            aria-label="القائمة"
+            className="rounded-full glass p-2.5 text-blush-600"
+          >
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <path d="M3 12h18M3 6h18M3 18h18" />
+            </svg>
           </button>
-          <div className="flex items-center gap-2">
-            <button onClick={() => go('/cart')} className="relative w-9 h-9 rounded-full bg-white/50 flex items-center justify-center">
-              <svg className="w-4 h-4 text-lavender-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
-              {cartCount > 0 && <span className="absolute -top-1 -left-1 bg-blush-500 text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-bold">{cartCount}</span>}
-            </button>
-            <button onClick={() => setSideNavOpen(true)} className="w-9 h-9 rounded-full bg-white/50 flex items-center justify-center">
-              <svg className="w-5 h-5 text-beige-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-            </button>
-          </div>
-        </nav>
+
+          <button onClick={() => navigate('/')} className="flex items-center gap-2">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full glass">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="url(#navGrad2)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <defs>
+                  <linearGradient id="navGrad2" x1="0" y1="0" x2="24" y2="24">
+                    <stop offset="0%" stopColor="#e85c8a" />
+                    <stop offset="50%" stopColor="#916dba" />
+                    <stop offset="100%" stopColor="#f59e0b" />
+                  </linearGradient>
+                </defs>
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                <circle cx="12" cy="7" r="4" />
+              </svg>
+            </div>
+            <span className="text-xl font-extrabold premium-gradient-text">اسكربك</span>
+          </button>
+
+          <button
+            onClick={() => navigate('/cart')}
+            className="relative rounded-full glass p-2.5 text-blush-600"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="9" cy="21" r="1" />
+              <circle cx="20" cy="21" r="1" />
+              <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
+            </svg>
+            {cartCount > 0 && (
+              <span className="absolute -top-1 -left-1 flex h-4.5 min-w-[18px] items-center justify-center rounded-full bg-blush-600 px-1 text-[10px] font-extrabold text-white">
+                {cartCount > 99 ? '99+' : cartCount}
+              </span>
+            )}
+          </button>
+        </div>
       </header>
 
-      <SideNav open={sideNavOpen} onClose={() => setSideNavOpen(false)} activePath={path} onNavigate={go} isLoggedIn={!!user} />
-      <BottomNav activePath={path} cartCount={cartCount} favCount={favCount} onNavigate={go} />
+      <SideNav open={sideOpen} onClose={() => setSideOpen(false)} />
+      <BottomNav cartCount={cartCount} favoritesCount={favoritesCount} />
     </>
-  );
-}
-
-function NavLink({ to, label, active, onClick }: { to: string; label: string; active: boolean; onClick: (to: string) => void }) {
-  return (
-    <button onClick={() => onClick(to)} className={`px-4 py-2 rounded-full text-sm font-bold transition-all ${active ? 'bg-gradient-to-r from-blush-200 to-lavender-200 text-blush-900' : 'text-beige-700 hover:bg-white/50'}`}>
-      {label}
-    </button>
-  );
+  )
 }

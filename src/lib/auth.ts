@@ -1,135 +1,104 @@
-import { supabase } from './supabase';
-
-export type AppUser = {
-  id: string;
-  email: string;
-  full_name: string;
-  phone: string;
-  role: 'admin' | 'customer';
-  admin_username: string | null;
-  avatar_url: string | null;
-};
-
-let currentUser: AppUser | null = null;
-const listeners = new Set<(u: AppUser | null) => void>();
-
-export function onAuthChange(cb: (u: AppUser | null) => void) {
-  listeners.add(cb);
-  cb(currentUser);
-  return () => { listeners.delete(cb); };
-}
-
-function emit() {
-  listeners.forEach(cb => cb(currentUser));
-}
+import { supabase, getGuestId } from './supabase'
+import type { Profile } from './types'
 
 export async function initAuth() {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (session) {
-    await loadProfile(session.user.id, session.user.email || '');
-  }
-  supabase.auth.onAuthStateChange(async (_event, session) => {
-    if (session) {
-      await loadProfile(session.user.id, session.user.email || '');
-    } else {
-      currentUser = null;
-      emit();
-    }
-  });
+  const { data } = await supabase.auth.getSession()
+  return data.session
 }
 
-async function loadProfile(userId: string, email: string) {
-  try {
-    const { data } = await supabase
-      .from('profiles')
-      .select('full_name, phone, role, admin_username, avatar_url')
-      .eq('id', userId)
-      .single();
-    currentUser = {
-      id: userId,
-      email,
-      full_name: data?.full_name || '',
-      phone: data?.phone || '',
-      role: (data?.role as 'admin' | 'customer') || 'customer',
-      admin_username: data?.admin_username || null,
-      avatar_url: data?.avatar_url || null,
-    };
-  } catch {
-    currentUser = { id: userId, email, full_name: '', phone: '', role: 'customer', admin_username: null, avatar_url: null };
-  }
-  emit();
+export function onAuthChange(callback: (session: any) => void) {
+  const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+    ;(async () => callback(session))()
+  })
+  return () => data.subscription.unsubscribe()
 }
 
-export function getUser(): AppUser | null {
-  return currentUser;
+export async function getUser(): Promise<Profile | null> {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+  const { data } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', user.id)
+    .maybeSingle()
+  return data as Profile | null
 }
 
-export function isAdmin(): boolean {
-  return currentUser?.role === 'admin';
+export async function isAdmin(): Promise<boolean> {
+  const user = await getUser()
+  return user?.role === 'admin'
 }
 
-export async function signUpCustomer(full_name: string, phone: string, password: string): Promise<{ error: string | null }> {
-  const email = `${phone}@scrubshop.app`;
+export async function signUpCustomer(name: string, phone: string, password: string) {
   const { data, error } = await supabase.auth.signUp({
-    email,
+    phone,
     password,
-    options: { data: { full_name, phone, role: 'customer' } },
-  });
-  if (error) return { error: error.message };
+    options: { data: { full_name: name, phone } },
+  })
+  if (error) return { error }
   if (data.user) {
-    await supabase.auth.signInWithPassword({ email, password });
+    await supabase.from('profiles').upsert({
+      id: data.user.id,
+      full_name: name,
+      phone,
+      role: 'user',
+    })
   }
-  return { error: null };
+  return { error: null }
 }
 
-export async function signInCustomer(phone: string, password: string): Promise<{ error: string | null }> {
-  const email = `${phone}@scrubshop.app`;
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) return { error: error.message };
-  return { error: null };
+export async function signInCustomer(phone: string, password: string) {
+  const { error } = await supabase.auth.signInWithPassword({ phone, password })
+  return { error }
 }
 
-export async function signInAdmin(username: string, password: string): Promise<{ error: string | null }> {
+export async function signInAdmin(username: string, password: string) {
   const { data: profile } = await supabase
     .from('profiles')
-    .select('id, email')
+    .select('*')
     .eq('admin_username', username)
     .eq('role', 'admin')
-    .single();
-  if (!profile) return { error: 'اسم المستخدم غير موجود' };
-  const email = profile.email || `${username}@scrubshop.app`;
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) return { error: error.message };
-  return { error: null };
+    .maybeSingle()
+
+  if (!profile) return { error: { message: 'المستخدم غير موجود' } }
+
+  const phone = profile.phone || ''
+  if (!phone) return { error: { message: 'لا يوجد رقم هاتف مرتبط' } }
+
+  const { error } = await supabase.auth.signInWithPassword({ phone, password })
+  if (error) return { error }
+  return { error: null }
 }
 
 export async function signOut() {
-  await supabase.auth.signOut();
-  currentUser = null;
-  emit();
+  await supabase.auth.signOut()
 }
 
-export async function updateProfile(updates: { full_name?: string; phone?: string; avatar_url?: string }): Promise<{ error: string | null }> {
-  if (!currentUser) return { error: 'غير مسجل' };
-  const { error } = await supabase.from('profiles').update(updates).eq('id', currentUser.id);
-  if (error) return { error: error.message };
-  currentUser = { ...currentUser, ...updates };
-  emit();
-  return { error: null };
+export async function updateProfile(updates: { full_name?: string; phone?: string; email?: string }) {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: { message: 'غير مسجل' } }
+  const { error } = await supabase
+    .from('profiles')
+    .update(updates)
+    .eq('id', user.id)
+  return { error }
 }
 
-export async function changePassword(newPassword: string): Promise<{ error: string | null }> {
-  const { error } = await supabase.auth.updateUser({ password: newPassword });
-  if (error) return { error: error.message };
-  return { error: null };
+export async function changePassword(newPassword: string) {
+  const { error } = await supabase.auth.updateUser({ password: newPassword })
+  return { error }
 }
 
 export async function uploadAvatar(file: File): Promise<{ url: string | null; error: string | null }> {
-  if (!currentUser) return { url: null, error: 'غير مسجل' };
-  const ext = file.name.split('.').pop() || 'jpg';
-  const path = `avatars/${currentUser.id}.${ext}`;
-  const { error: upErr } = await supabase.storage.from('customer-avatars').upload(path, file, { upsert: true });
-  if (upErr) return { url: null, error: upErr.message };
-  const { data } = supabase.storage.from('customer-avatars').getPublicUrl(path);
-  return { url: data.publicUrl, error: null };
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { url: null, error: 'غير مسجل' }
+  const ext = file.name.split('.').pop()
+  const path = `${user.id}/avatar.${ext}`
+  const { error } = await supabase.storage.from('avatars').upload(path, file, { upsert: true })
+  if (error) return { url: null, error: error.message }
+  const { data } = supabase.storage.from('avatars').getPublicUrl(path)
+  await supabase.from('profiles').update({ avatar_url: data.publicUrl }).eq('id', user.id)
+  return { url: data.publicUrl, error: null }
 }
+
+export { getGuestId }

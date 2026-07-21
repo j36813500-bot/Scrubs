@@ -1,34 +1,27 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+const url = import.meta.env.VITE_SUPABASE_URL
+const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+export const supabase = createClient(url, anonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
-    detectSessionInUrl: false,
+    detectSessionInUrl: true,
   },
-  global: { headers: { 'x-client-info': 'scrubshop-web' } },
-});
+})
 
 export function getGuestId(): string {
-  const KEY = 'scrubshop_guest_id';
-  let id = localStorage.getItem(KEY);
+  let id = localStorage.getItem('guest_id')
   if (!id) {
-    id = crypto.randomUUID?.() || 'guest-' + Date.now() + '-' + Math.random().toString(36).slice(2);
-    localStorage.setItem(KEY, id);
+    id = 'guest_' + crypto.randomUUID()
+    localStorage.setItem('guest_id', id)
   }
-  return id;
+  return id
 }
 
 export async function withGuestContext<T>(fn: () => Promise<T>): Promise<T> {
-  try {
-    await supabase.rpc('set_config', {
-      config_name: 'request.guest_id',
-      config_value: getGuestId(),
-      is_local: true,
-    }).throwOnError();
-  } catch { /* ignore */ }
-  return fn();
+  const guestId = getGuestId()
+  await supabase.rpc('set_guest_id', { gid: guestId }).maybeSingle()
+  return fn()
 }

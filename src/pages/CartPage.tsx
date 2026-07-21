@@ -1,673 +1,476 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
-import { useRouter } from '../lib/router';
+import { useEffect, useState, useCallback } from 'react'
+import { useRouter } from '../lib/router'
 import {
   fetchCart,
-  updateCartQuantity,
   removeFromCart,
+  updateCartQuantity,
   createOrder,
   createOrderItems,
-} from '../lib/api';
-import { getUser, onAuthChange, type AppUser } from '../lib/auth';
-import AuthGateModal from '../components/AuthGateModal';
-import type { CartItem } from '../lib/types';
+} from '../lib/api'
+import type { CartItem, Order } from '../lib/types'
+import AuthGateModal from '../components/AuthGateModal'
 
-/* -------------------------------------------------------------------------- */
-/* Constants                                                                   */
-/* -------------------------------------------------------------------------- */
-
-const FREE_SHIPPING_THRESHOLD = 500;
-const SHIPPING_FEE = 60;
-
-/* -------------------------------------------------------------------------- */
-/* Helpers                                                                     */
-/* -------------------------------------------------------------------------- */
-
-/** Format a number as a localized Arabic price string. */
-function formatPrice(value: number): string {
-  return new Intl.NumberFormat('ar-EG', {
-    maximumFractionDigits: 0,
-  }).format(value);
+// ── Skeleton ──────────────────────────────────────────────────────
+function CartSkeleton(): JSX.Element {
+  return (
+    <div className="space-y-4">
+      {Array.from({ length: 3 }).map((_, i) => (
+        <div key={i} className="glass-card p-4 flex gap-4">
+          <div className="shimmer-bg animate-pulse h-24 w-24 rounded-2xl shrink-0" />
+          <div className="flex-1 space-y-2">
+            <div className="shimmer-bg animate-pulse h-4 w-3/4 rounded-full" />
+            <div className="shimmer-bg animate-pulse h-3 w-1/2 rounded-full" />
+            <div className="shimmer-bg animate-pulse h-6 w-1/4 rounded-full" />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
 }
 
-/* -------------------------------------------------------------------------- */
-/* Skeleton row (loading state)                                               */
-/* -------------------------------------------------------------------------- */
+// ── Cart item row ─────────────────────────────────────────────────
+interface CartItemRowProps {
+  item: CartItem
+  onRemove: (cartId: string) => void
+  onUpdateQty: (cartId: string, quantity: number) => void
+}
 
-const SkeletonRow: React.FC = () => (
-  <div className="glass-card flex items-center gap-4 rounded-3xl p-4">
-    <div className="h-20 w-16 shrink-0 animate-pulse rounded-2xl bg-beige-200/60" />
-    <div className="flex-1 space-y-2.5">
-      <div className="h-4 w-2/3 animate-pulse rounded-full bg-beige-200/60" />
-      <div className="h-4 w-1/4 animate-pulse rounded-full bg-beige-200/50" />
-      <div className="h-8 w-28 animate-pulse rounded-full bg-beige-200/40" />
-    </div>
-    <div className="h-8 w-8 animate-pulse rounded-full bg-beige-200/40" />
-  </div>
-);
-
-/* -------------------------------------------------------------------------- */
-/* Cart item row                                                              */
-/* -------------------------------------------------------------------------- */
-
-type CartRowProps = {
-  item: CartItem;
-  onQuantityChange: (cartId: string, quantity: number) => void;
-  onRemove: (cartId: string) => void;
-  updatingId: string | null;
-};
-
-const CartRow: React.FC<CartRowProps> = ({ item, onQuantityChange, onRemove, updatingId }) => {
-  const isUpdating = updatingId === item.id;
-  const lineTotal = item.product.price * item.quantity;
-
+function CartItemRow({ item, onRemove, onUpdateQty }: CartItemRowProps): JSX.Element {
+  const product = item.product
   return (
-    <div className="glass-card flex items-center gap-4 rounded-3xl p-4 transition-all duration-300 hover:shadow-glow">
-      {/* Product image */}
-      <button
-        type="button"
-        onClick={() => {}}
-        className="shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-blush-400/60"
-        aria-label={item.product.name_ar}
-      >
-        {item.product.image_url ? (
-          <img
-            src={item.product.image_url}
-            alt={item.product.name_ar}
-            loading="lazy"
-            className="h-20 w-16 rounded-2xl object-cover"
-          />
+    <div className="glass-card p-4 flex gap-4 animate-fade-in-up">
+      {/* Image */}
+      <div className="h-24 w-24 shrink-0 rounded-2xl overflow-hidden bg-gradient-to-br from-blush-50 to-lavender-50">
+        {product?.image_url ? (
+          <img src={product.image_url} alt={product?.name_ar || ''} className="h-full w-full object-cover" />
         ) : (
-          <div className="flex h-20 w-16 items-center justify-center rounded-2xl bg-beige-100/60 text-beige-300">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M3 9 4.5 4h15L21 9" />
-              <path d="M3 9v11h18V9" />
-              <path d="M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0" />
+          <div className="flex h-full w-full items-center justify-center text-gray-300">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+              <circle cx="8.5" cy="8.5" r="1.5" />
+              <path d="M21 15l-5-5L5 21" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </div>
         )}
-      </button>
+      </div>
 
-      {/* Details */}
+      {/* Info */}
       <div className="flex-1 min-w-0">
-        <h3 className="line-clamp-1 text-sm font-semibold text-beige-800">{item.product.name_ar}</h3>
-
-        {/* Color / size meta */}
-        {(item.color_name_ar || item.size_label) && (
-          <p className="mt-0.5 text-xs text-beige-500">
-            {[item.color_name_ar, item.size_label].filter(Boolean).join(' · ')}
-          </p>
-        )}
-
-        <p className="mt-1 text-sm font-bold text-blush-600">
-          {formatPrice(item.product.price)} ج.م
-        </p>
-
-        {/* Quantity selector */}
-        <div className="mt-2 inline-flex items-center gap-1 rounded-full bg-white/60 p-1">
+        <div className="flex items-start justify-between gap-2">
+          <h3 className="font-bold text-gray-800 line-clamp-1">{product?.name_ar || 'منتج'}</h3>
           <button
-            type="button"
-            onClick={() => onQuantityChange(item.id, item.quantity - 1)}
-            disabled={item.quantity <= 1 || isUpdating}
-            className="flex h-7 w-7 items-center justify-center rounded-full bg-beige-100/80 text-beige-700 transition hover:bg-blush-100 hover:text-blush-600 disabled:cursor-not-allowed disabled:opacity-40"
-            aria-label="تقليل الكمية"
+            onClick={(): void => onRemove(item.id)}
+            className="text-gray-400 hover:text-red-500 transition-colors shrink-0"
+            aria-label="حذف"
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M5 12h14" />
-            </svg>
-          </button>
-          <span className="min-w-[2rem] text-center text-sm font-semibold text-beige-800">
-            {isUpdating ? '…' : item.quantity}
-          </span>
-          <button
-            type="button"
-            onClick={() => onQuantityChange(item.id, item.quantity + 1)}
-            disabled={isUpdating}
-            className="flex h-7 w-7 items-center justify-center rounded-full bg-beige-100/80 text-beige-700 transition hover:bg-blush-100 hover:text-blush-600 disabled:cursor-not-allowed disabled:opacity-40"
-            aria-label="زيادة الكمية"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M12 5v14M5 12h14" />
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
             </svg>
           </button>
         </div>
-      </div>
 
-      {/* Line total + remove */}
-      <div className="flex flex-col items-end gap-2">
-        <span className="text-sm font-bold text-beige-800">{formatPrice(lineTotal)} ج.م</span>
-        <button
-          type="button"
-          onClick={() => onRemove(item.id)}
-          className="flex h-8 w-8 items-center justify-center rounded-full bg-blush-50/80 text-blush-400 transition hover:bg-blush-100 hover:text-blush-600"
-          aria-label="إزالة المنتج"
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M18 6 6 18M6 6l12 12" />
-          </svg>
-        </button>
-      </div>
-    </div>
-  );
-};
-
-/* -------------------------------------------------------------------------- */
-/* Success state                                                              */
-/* -------------------------------------------------------------------------- */
-
-type SuccessStateProps = {
-  orderNumber: string;
-  onTrack: () => void;
-};
-
-const SuccessState: React.FC<SuccessStateProps> = ({ orderNumber, onTrack }) => (
-  <div className="flex flex-col items-center justify-center py-16 text-center">
-    {/* Checkmark animation */}
-    <div className="relative mb-6 flex h-24 w-24 items-center justify-center">
-      <span className="absolute inset-0 animate-ping rounded-full bg-blush-300/30" />
-      <span className="absolute inset-0 animate-pulse rounded-full bg-blush-300/20" />
-      <span className="relative flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-blush-400 to-lavender-400 shadow-glow">
-        <svg
-          className="animate-[checkmark_0.6s_ease-out]"
-          width="44"
-          height="44"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="white"
-          strokeWidth="3"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <path d="M20 6 9 17l-5-5" />
-        </svg>
-      </span>
-    </div>
-
-    <h2 className="premium-gradient-text text-3xl font-extrabold">تم تأكيد طلبك!</h2>
-    <p className="mt-2 text-sm text-beige-500">
-      رقم الطلب: <span className="font-semibold text-beige-700" dir="ltr">{orderNumber}</span>
-    </p>
-    <p className="mt-1 max-w-sm text-sm text-beige-500">
-      سنتواصل معك قريباً لتأكيد التوصيل. شكراً لثقتك بنا.
-    </p>
-
-    <button type="button" onClick={onTrack} className="btn-premium mt-6">
-      تتبع الطلب
-    </button>
-  </div>
-);
-
-/* -------------------------------------------------------------------------- */
-/* Empty cart state                                                           */
-/* -------------------------------------------------------------------------- */
-
-type EmptyStateProps = {
-  onBrowse: () => void;
-};
-
-const EmptyState: React.FC<EmptyStateProps> = ({ onBrowse }) => (
-  <div className="flex flex-col items-center justify-center py-20 text-center">
-    <div className="mb-5 flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-beige-100 to-beige-200/60 text-beige-400">
-      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <path d="M3 9 4.5 4h15L21 9" />
-        <path d="M3 9v11h18V9" />
-        <path d="M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0" />
-      </svg>
-    </div>
-    <h3 className="text-lg font-semibold text-beige-700">سلتك فارغة</h3>
-    <p className="mt-1 max-w-xs text-sm text-beige-500">
-      لم تقم بإضافة أي منتجات بعد. تصفح متجرنا واختر من تشكيلتنا الفاخرة.
-    </p>
-    <button type="button" onClick={onBrowse} className="btn-premium mt-5">
-      تصفح المتجر
-    </button>
-  </div>
-);
-
-/* -------------------------------------------------------------------------- */
-/* CartPage                                                                    */
-/* -------------------------------------------------------------------------- */
-
-const CartPage: React.FC = () => {
-  const router = useRouter();
-
-  const [cart, setCart] = useState<CartItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [updatingId, setUpdatingId] = useState<string | null>(null);
-
-  // Checkout form state
-  const [form, setForm] = useState({
-    name: '',
-    phone: '',
-    city: '',
-    address: '',
-    notes: '',
-  });
-  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
-  const [submitting, setSubmitting] = useState(false);
-  const [orderError, setOrderError] = useState<string | null>(null);
-
-  // Auth state
-  const [user, setUser] = useState<AppUser | null>(null);
-  const [showAuthGate, setShowAuthGate] = useState(false);
-
-  // Success state
-  const [completedOrder, setCompletedOrder] = useState<string | null>(null);
-
-  /* ----------------------------------------------------------------------- */
-  /* Auth subscription                                                       */
-  /* ----------------------------------------------------------------------- */
-
-  useEffect(() => {
-    setUser(getUser());
-    const unsubscribe = onAuthChange((u: AppUser | null) => {
-      setUser(u);
-    });
-    return unsubscribe;
-  }, []);
-
-  /* ----------------------------------------------------------------------- */
-  /* Load cart                                                               */
-  /* ----------------------------------------------------------------------- */
-
-  const loadCart = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const items = await fetchCart();
-      setCart(items);
-    } catch (err) {
-      console.error('Failed to load cart:', err);
-      setError('تعذر تحميل السلة. يرجى المحاولة مرة أخرى.');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadCart();
-  }, [loadCart]);
-
-  /* ----------------------------------------------------------------------- */
-  /* Derived: order summary                                                  */
-  /* ----------------------------------------------------------------------- */
-
-  const subtotal = useMemo(
-    () => cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0),
-    [cart],
-  );
-  const shipping = subtotal >= FREE_SHIPPING_THRESHOLD || subtotal === 0 ? 0 : SHIPPING_FEE;
-  const total = subtotal + shipping;
-  const remainingForFreeShipping = Math.max(0, FREE_SHIPPING_THRESHOLD - subtotal);
-  const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
-
-  /* ----------------------------------------------------------------------- */
-  /* Handlers                                                                */
-  /* ----------------------------------------------------------------------- */
-
-  async function handleQuantityChange(cartId: string, quantity: number): Promise<void> {
-    if (quantity < 1) return;
-    setUpdatingId(cartId);
-    try {
-      await updateCartQuantity(cartId, quantity);
-      setCart((prev) =>
-        prev.map((item) => (item.id === cartId ? { ...item, quantity } : item)),
-      );
-    } catch (err) {
-      console.error('Failed to update quantity:', err);
-    } finally {
-      setUpdatingId(null);
-    }
-  }
-
-  async function handleRemove(cartId: string): Promise<void> {
-    setUpdatingId(cartId);
-    try {
-      await removeFromCart(cartId);
-      setCart((prev) => prev.filter((item) => item.id !== cartId));
-    } catch (err) {
-      console.error('Failed to remove item:', err);
-      setError('تعذر إزالة المنتج. يرجى المحاولة مرة أخرى.');
-    } finally {
-      setUpdatingId(null);
-    }
-  }
-
-  function validateForm(): boolean {
-    const errors: Record<string, string> = {};
-    if (!form.name.trim()) errors.name = 'الاسم مطلوب';
-    if (!form.phone.trim()) {
-      errors.phone = 'رقم الهاتف مطلوب';
-    } else if (!/^[0-9+\s-]{8,15}$/.test(form.phone.trim())) {
-      errors.phone = 'رقم هاتف غير صالح';
-    }
-    if (!form.city.trim()) errors.city = 'المدينة مطلوبة';
-    if (!form.address.trim()) errors.address = 'العنوان مطلوب';
-    setFormErrors(errors);
-    return Object.keys(errors).length === 0;
-  }
-
-  async function handleCheckout(): Promise<void> {
-    setOrderError(null);
-
-    // Require authentication
-    if (!user) {
-      setShowAuthGate(true);
-      return;
-    }
-
-    if (cart.length === 0) return;
-    if (!validateForm()) return;
-
-    setSubmitting(true);
-    try {
-      const order = await createOrder({
-        customer_name: form.name.trim(),
-        customer_phone: form.phone.trim(),
-        shipping_address_ar: form.address.trim(),
-        city_ar: form.city.trim(),
-        total_amount: total,
-        payment_method: 'cod',
-        notes_ar: form.notes.trim() || undefined,
-        user_id: user.id,
-      });
-
-      await createOrderItems(
-        cart.map((item) => ({
-          order_id: order.id,
-          product_id: item.product_id,
-          product_name_ar: item.product.name_ar,
-          color_name_ar: item.color_name_ar,
-          size_label: item.size_label,
-          quantity: item.quantity,
-          unit_price: item.product.price,
-        })),
-      );
-
-      // Clear cart locally + in DB
-      await Promise.all(cart.map((item) => removeFromCart(item.id)));
-      setCart([]);
-      setCompletedOrder(order.order_number);
-    } catch (err) {
-      console.error('Failed to place order:', err);
-      setOrderError('تعذر إتمام الطلب. يرجى المحاولة مرة أخرى.');
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  function handleFieldChange(field: keyof typeof form, value: string): void {
-    setForm((prev) => ({ ...prev, [field]: value }));
-    if (formErrors[field]) {
-      setFormErrors((prev) => {
-        const next = { ...prev };
-        delete next[field];
-        return next;
-      });
-    }
-  }
-
-  /* ----------------------------------------------------------------------- */
-  /* Render                                                                   */
-  /* ----------------------------------------------------------------------- */
-
-  // Success state takes over the whole page
-  if (completedOrder) {
-    return (
-      <div dir="rtl" className="relative min-h-screen overflow-hidden bg-gradient-to-b from-blush-50/40 via-white to-lavender-50/30">
-        <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden="true">
-          <div className="absolute -top-24 -right-24 h-72 w-72 rounded-full bg-blush-400/20 blur-3xl" />
-          <div className="absolute top-1/3 -left-32 h-80 w-80 rounded-full bg-lavender-400/20 blur-3xl" />
+        <div className="mt-1 flex flex-wrap gap-2 text-xs text-gray-500">
+          {item.color_name_ar && (
+            <span className="rounded-full glass px-2.5 py-0.5">اللون: {item.color_name_ar}</span>
+          )}
+          {item.size_label && (
+            <span className="rounded-full glass px-2.5 py-0.5">المقاس: {item.size_label}</span>
+          )}
         </div>
-        <div className="relative z-10 mx-auto max-w-2xl px-4 py-8 sm:px-6 lg:px-8">
-          <SuccessState
-            orderNumber={completedOrder}
-            onTrack={() => router.push(`/orders`)}
-          />
-        </div>
-      </div>
-    );
-  }
 
-  return (
-    <div dir="rtl" className="relative min-h-screen overflow-hidden bg-gradient-to-b from-blush-50/40 via-white to-lavender-50/30">
-      {/* Ambient glow orbs */}
-      <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden="true">
-        <div className="absolute -top-24 -right-24 h-72 w-72 rounded-full bg-blush-400/20 blur-3xl" />
-        <div className="absolute top-1/3 -left-32 h-80 w-80 rounded-full bg-lavender-400/20 blur-3xl" />
-        <div className="absolute bottom-0 right-1/4 h-64 w-64 rounded-full bg-gold-300/10 blur-3xl" />
-      </div>
-
-      {/* Content */}
-      <div className="relative z-10 mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
-        {/* Header */}
-        <header className="mb-8 text-center">
-          <h1 className="premium-gradient-text text-4xl font-extrabold tracking-tight sm:text-5xl">
-            سلة التسوق
-          </h1>
-          <p className="mt-2 text-sm text-beige-500">
-            {itemCount > 0 ? `${itemCount} منتج في سلتك` : 'راجع منتجاتك وأكمل طلبك'}
-          </p>
-        </header>
-
-        {/* Loading skeleton */}
-        {loading && (
-          <div className="space-y-4">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <SkeletonRow key={i} />
-            ))}
-          </div>
-        )}
-
-        {/* Error state */}
-        {error && !loading && (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blush-100 text-blush-400">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <circle cx="12" cy="12" r="10" />
-                <path d="M12 8v4M12 16h.01" />
-              </svg>
-            </div>
-            <p className="text-beige-600">{error}</p>
+        <div className="mt-3 flex items-center justify-between">
+          {/* Quantity */}
+          <div className="flex items-center gap-2">
             <button
-              type="button"
-              onClick={loadCart}
-              className="mt-4 rounded-full bg-gradient-to-r from-blush-400 to-lavender-400 px-6 py-2 text-sm font-semibold text-white shadow-glow transition hover:scale-105"
+              onClick={(): void => onUpdateQty(item.id, Math.max(1, item.quantity - 1))}
+              className="glass rounded-full h-8 w-8 flex items-center justify-center text-blush-600 font-bold"
             >
-              إعادة المحاولة
+              −
+            </button>
+            <span className="font-bold w-8 text-center">{item.quantity}</span>
+            <button
+              onClick={(): void => onUpdateQty(item.id, item.quantity + 1)}
+              className="glass rounded-full h-8 w-8 flex items-center justify-center text-blush-600 font-bold"
+            >
+              +
             </button>
           </div>
-        )}
 
-        {/* Empty cart */}
-        {!loading && !error && cart.length === 0 && (
-          <EmptyState onBrowse={() => router.push('/store')} />
-        )}
+          {/* Price */}
+          <span className="text-lg font-extrabold premium-gradient-text">
+            {(product?.price || 0) * item.quantity} <span className="text-sm">ج.م</span>
+          </span>
+        </div>
+      </div>
+    </div>
+  )
+}
 
-        {/* Cart + summary + checkout */}
-        {!loading && !error && cart.length > 0 && (
-          <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
-            {/* Left: cart items */}
-            <div className="space-y-4">
-              {/* Free shipping progress */}
-              {remainingForFreeShipping > 0 && (
-                <div className="glass-card rounded-3xl p-4">
-                  <p className="text-sm text-beige-600">
-                    أضف منتجات بقيمة{' '}
-                    <span className="font-bold text-blush-600">
-                      {formatPrice(remainingForFreeShipping)} ج.م
-                    </span>{' '}
-                    للحصول على شحن مجاني 🚚
-                  </p>
-                  <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-beige-100">
-                    <div
-                      className="h-full rounded-full bg-gradient-to-r from-blush-400 to-lavender-400 transition-all duration-500"
-                      style={{ width: `${Math.min(100, (subtotal / FREE_SHIPPING_THRESHOLD) * 100)}%` }}
-                    />
-                  </div>
-                </div>
-              )}
+// ── Checkout form ─────────────────────────────────────────────────
+interface CheckoutFormProps {
+  onSubmit: (data: CheckoutData) => Promise<void>
+  submitting: boolean
+  subtotal: number
+  shipping: number
+  total: number
+}
 
-              {cart.map((item) => (
-                <CartRow
-                  key={item.id}
-                  item={item}
-                  onQuantityChange={handleQuantityChange}
-                  onRemove={handleRemove}
-                  updatingId={updatingId}
-                />
-              ))}
-            </div>
+interface CheckoutData {
+  name: string
+  phone: string
+  address: string
+  city: string
+  notes: string
+  paymentMethod: string
+}
 
-            {/* Right: summary + checkout form */}
-            <div className="space-y-6 lg:sticky lg:top-6 lg:self-start">
-              {/* Order summary */}
-              <div className="glass-card rounded-3xl p-5">
-                <h2 className="mb-4 text-lg font-bold text-beige-800">ملخص الطلب</h2>
-                <dl className="space-y-3 text-sm">
-                  <div className="flex items-center justify-between">
-                    <dt className="text-beige-500">المجموع الفرعي</dt>
-                    <dd className="font-semibold text-beige-800">{formatPrice(subtotal)} ج.م</dd>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <dt className="text-beige-500">الشحن</dt>
-                    <dd className="font-semibold text-beige-800">
-                      {shipping === 0 ? (
-                        <span className="text-green-600">مجاني</span>
-                      ) : (
-                        `${formatPrice(shipping)} ج.م`
-                      )}
-                    </dd>
-                  </div>
-                  <div className="border-t border-beige-200/60 pt-3 flex items-center justify-between">
-                    <dt className="font-semibold text-beige-700">الإجمالي</dt>
-                    <dd className="text-lg font-extrabold text-blush-600">
-                      {formatPrice(total)} ج.م
-                    </dd>
-                  </div>
-                </dl>
-              </div>
+function CheckoutForm({ onSubmit, submitting, subtotal, shipping, total }: CheckoutFormProps): JSX.Element {
+  const [name, setName] = useState<string>('')
+  const [phone, setPhone] = useState<string>('')
+  const [address, setAddress] = useState<string>('')
+  const [city, setCity] = useState<string>('')
+  const [notes, setNotes] = useState<string>('')
+  const [paymentMethod, setPaymentMethod] = useState<string>('cod')
+  const [error, setError] = useState<string | null>(null)
 
-              {/* Checkout form */}
-              <div className="glass-card rounded-3xl p-5">
-                <h2 className="mb-4 text-lg font-bold text-beige-800">بيانات التوصيل</h2>
-                <form
-                  className="space-y-4"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    handleCheckout();
-                  }}
-                >
-                  {/* Name */}
-                  <div>
-                    <input
-                      type="text"
-                      value={form.name}
-                      onChange={(e) => handleFieldChange('name', e.target.value)}
-                      placeholder="الاسم بالكامل"
-                      aria-label="الاسم بالكامل"
-                      className="input-premium w-full rounded-2xl px-4 py-3 text-sm text-beige-800 placeholder:text-beige-400 focus:outline-none"
-                    />
-                    {formErrors.name && (
-                      <p className="mt-1 text-xs text-blush-500">{formErrors.name}</p>
-                    )}
-                  </div>
+  const handleSubmit = async (e: React.FormEvent): Promise<void> => {
+    e.preventDefault()
+    if (!name.trim() || !phone.trim() || !address.trim() || !city.trim()) {
+      setError('الرجاء ملء جميع الحقول المطلوبة')
+      return
+    }
+    setError(null)
+    await onSubmit({ name, phone, address, city, notes, paymentMethod })
+  }
 
-                  {/* Phone */}
-                  <div>
-                    <input
-                      type="tel"
-                      value={form.phone}
-                      onChange={(e) => handleFieldChange('phone', e.target.value)}
-                      placeholder="رقم الهاتف"
-                      aria-label="رقم الهاتف"
-                      dir="ltr"
-                      className="input-premium w-full rounded-2xl px-4 py-3 text-right text-sm text-beige-800 placeholder:text-beige-400 focus:outline-none"
-                    />
-                    {formErrors.phone && (
-                      <p className="mt-1 text-xs text-blush-500">{formErrors.phone}</p>
-                    )}
-                  </div>
+  return (
+    <form onSubmit={handleSubmit} className="glass-card p-6 space-y-4">
+      <h3 className="text-xl font-extrabold premium-gradient-text">بيانات الطلب</h3>
 
-                  {/* City */}
-                  <div>
-                    <input
-                      type="text"
-                      value={form.city}
-                      onChange={(e) => handleFieldChange('city', e.target.value)}
-                      placeholder="المدينة"
-                      aria-label="المدينة"
-                      className="input-premium w-full rounded-2xl px-4 py-3 text-sm text-beige-800 placeholder:text-beige-400 focus:outline-none"
-                    />
-                    {formErrors.city && (
-                      <p className="mt-1 text-xs text-blush-500">{formErrors.city}</p>
-                    )}
-                  </div>
-
-                  {/* Address */}
-                  <div>
-                    <input
-                      type="text"
-                      value={form.address}
-                      onChange={(e) => handleFieldChange('address', e.target.value)}
-                      placeholder="العنوان بالتفصيل"
-                      aria-label="العنوان بالتفصيل"
-                      className="input-premium w-full rounded-2xl px-4 py-3 text-sm text-beige-800 placeholder:text-beige-400 focus:outline-none"
-                    />
-                    {formErrors.address && (
-                      <p className="mt-1 text-xs text-blush-500">{formErrors.address}</p>
-                    )}
-                  </div>
-
-                  {/* Notes */}
-                  <div>
-                    <textarea
-                      value={form.notes}
-                      onChange={(e) => handleFieldChange('notes', e.target.value)}
-                      placeholder="ملاحظات إضافية (اختياري)"
-                      aria-label="ملاحظات إضافية"
-                      rows={3}
-                      className="input-premium w-full resize-none rounded-2xl px-4 py-3 text-sm text-beige-800 placeholder:text-beige-400 focus:outline-none"
-                    />
-                  </div>
-
-                  {/* Order error */}
-                  {orderError && (
-                    <p className="rounded-2xl bg-blush-50 px-4 py-2 text-xs text-blush-600">
-                      {orderError}
-                    </p>
-                  )}
-
-                  {/* Submit */}
-                  <button
-                    type="submit"
-                    disabled={submitting}
-                    className="btn-premium w-full disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {submitting ? 'جارٍ تأكيد الطلب...' : 'تأكيد الطلب'}
-                  </button>
-
-                  {!user && (
-                    <p className="text-center text-xs text-beige-400">
-                      ستحتاج لتسجيل الدخول لإتمام الطلب
-                    </p>
-                  )}
-                </form>
-              </div>
-            </div>
-          </div>
-        )}
+      <div>
+        <label className="block text-sm font-bold text-gray-700 mb-1.5">الاسم الكامل *</label>
+        <input
+          type="text"
+          value={name}
+          onChange={(e): void => setName(e.target.value)}
+          placeholder="اسمك الكامل"
+          className="input-premium"
+        />
       </div>
 
-      {/* Auth gate modal */}
+      <div>
+        <label className="block text-sm font-bold text-gray-700 mb-1.5">رقم الهاتف *</label>
+        <input
+          type="tel"
+          value={phone}
+          onChange={(e): void => setPhone(e.target.value)}
+          placeholder="01xxxxxxxxx"
+          className="input-premium"
+          dir="ltr"
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-bold text-gray-700 mb-1.5">العنوان *</label>
+        <input
+          type="text"
+          value={address}
+          onChange={(e): void => setAddress(e.target.value)}
+          placeholder="العنوان بالتفصيل"
+          className="input-premium"
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-bold text-gray-700 mb-1.5">المدينة *</label>
+        <input
+          type="text"
+          value={city}
+          onChange={(e): void => setCity(e.target.value)}
+          placeholder="المدينة"
+          className="input-premium"
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-bold text-gray-700 mb-1.5">ملاحظات</label>
+        <textarea
+          value={notes}
+          onChange={(e): void => setNotes(e.target.value)}
+          placeholder="أي ملاحظات إضافية..."
+          rows={2}
+          className="input-premium resize-none"
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-bold text-gray-700 mb-2">طريقة الدفع</label>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={(): void => setPaymentMethod('cod')}
+            className={`flex-1 rounded-2xl px-4 py-3 text-sm font-bold transition-all duration-300 ${
+              paymentMethod === 'cod' ? 'btn-premium' : 'glass text-gray-600'
+            }`}
+          >
+            الدفع عند الاستلام
+          </button>
+          <button
+            type="button"
+            onClick={(): void => setPaymentMethod('card')}
+            className={`flex-1 rounded-2xl px-4 py-3 text-sm font-bold transition-all duration-300 ${
+              paymentMethod === 'card' ? 'btn-premium' : 'glass text-gray-600'
+            }`}
+          >
+            بطاقة ائتمان
+          </button>
+        </div>
+      </div>
+
+      {/* Summary */}
+      <div className="space-y-2 border-t border-blush-200/30 pt-4">
+        <div className="flex justify-between text-sm text-gray-600">
+          <span>المجموع الفرعي</span>
+          <span className="font-bold">{subtotal} ج.م</span>
+        </div>
+        <div className="flex justify-between text-sm text-gray-600">
+          <span>الشحن</span>
+          <span className="font-bold">
+            {shipping === 0 ? 'مجاني' : `${shipping} ج.م`}
+          </span>
+        </div>
+        <div className="flex justify-between text-lg font-extrabold">
+          <span className="text-gray-800">الإجمالي</span>
+          <span className="premium-gradient-text">{total} ج.م</span>
+        </div>
+      </div>
+
+      {error && (
+        <div className="rounded-2xl bg-red-50/80 border border-red-200 px-4 py-3 text-sm font-bold text-red-700">
+          {error}
+        </div>
+      )}
+
+      <button
+        type="submit"
+        disabled={submitting}
+        className="btn-premium w-full disabled:opacity-60 disabled:cursor-not-allowed"
+      >
+        {submitting ? 'جارٍ إنشاء الطلب...' : 'تأكيد الطلب'}
+      </button>
+    </form>
+  )
+}
+
+// ── Main page ─────────────────────────────────────────────────────
+export default function CartPage(): JSX.Element {
+  const { navigate } = useRouter()
+
+  const [items, setItems] = useState<CartItem[]>([])
+  const [loading, setLoading] = useState<boolean>(true)
+  const [submitting, setSubmitting] = useState<boolean>(false)
+  const [authModalOpen, setAuthModalOpen] = useState<boolean>(false)
+  const [successOrder, setSuccessOrder] = useState<Order | null>(null)
+
+  const loadCart = useCallback(async (): Promise<void> => {
+    setLoading(true)
+    try {
+      const data: CartItem[] = await fetchCart()
+      setItems(data)
+    } catch (err) {
+      console.error('Failed to load cart:', err)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect((): void => {
+    loadCart()
+  }, [loadCart])
+
+  const handleRemove = async (cartId: string): Promise<void> => {
+    try {
+      await removeFromCart(cartId)
+      setItems((prev) => prev.filter((item) => item.id !== cartId))
+    } catch (err) {
+      console.error('Failed to remove from cart:', err)
+    }
+  }
+
+  const handleUpdateQty = async (cartId: string, quantity: number): Promise<void> => {
+    try {
+      await updateCartQuantity(cartId, quantity)
+      setItems((prev) =>
+        prev.map((item) =>
+          item.id === cartId ? { ...item, quantity } : item
+        )
+      )
+    } catch (err) {
+      console.error('Failed to update quantity:', err)
+    }
+  }
+
+  const subtotal: number = items.reduce(
+    (sum: number, item: CartItem) => sum + (item.product?.price || 0) * item.quantity,
+    0
+  )
+  const shipping: number = subtotal >= 500 ? 0 : 60
+  const total: number = subtotal + shipping
+
+  const handleCheckout = async (data: CheckoutData): Promise<void> => {
+    setSubmitting(true)
+    try {
+      const order: Order | null = await createOrder({
+        customer_name: data.name,
+        customer_phone: data.phone,
+        shipping_address: data.address,
+        city: data.city,
+        total_amount: total,
+        notes: data.notes,
+        payment_method: data.paymentMethod,
+      })
+
+      if (order) {
+        await createOrderItems(
+          items.map((item: CartItem) => ({
+            order_id: order.id,
+            product_id: item.product_id,
+            product_name: item.product?.name_ar || 'منتج',
+            color_name: item.color_name_ar || undefined,
+            size_label: item.size_label || undefined,
+            unit_price: item.product?.price || 0,
+            quantity: item.quantity,
+          }))
+        )
+
+        // Clear cart
+        for (const item of items) {
+          await removeFromCart(item.id)
+        }
+        setItems([])
+        setSuccessOrder(order)
+      }
+    } catch (err) {
+      console.error('Failed to create order:', err)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  // ── Success state ──
+  if (successOrder) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4 pt-24 pb-20" dir="rtl">
+        <div className="glass-card max-w-md w-full p-8 text-center animate-scale-in">
+          <div className="mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-full glass shadow-glow animate-breathe">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+              <path d="M22 4L12 14.01l-3-3" />
+            </svg>
+          </div>
+          <h2 className="mb-2 text-2xl font-extrabold premium-gradient-text">تم إنشاء طلبك بنجاح!</h2>
+          <p className="mb-6 text-gray-600">رقم طلبك هو:</p>
+          <div className="mb-6 rounded-2xl glass px-6 py-4">
+            <span className="text-2xl font-extrabold text-blush-600 tracking-wider" dir="ltr">
+              {successOrder.order_number}
+            </span>
+          </div>
+          <p className="mb-6 text-sm text-gray-500">
+            سنتواصل معك قريباً لتأكيد الطلب وتفاصيل الشحن.
+          </p>
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={(): void => navigate(`/track?order=${successOrder.order_number}`)}
+              className="btn-premium w-full"
+            >
+              تتبع الطلب
+            </button>
+            <button onClick={(): void => navigate('/store')} className="btn-ghost w-full">
+              مواصلة التسوق
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Empty cart ──
+  if (!loading && items.length === 0) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4 pt-24 pb-20" dir="rtl">
+        <div className="glass-card max-w-md w-full p-8 text-center">
+          <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full glass">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#916dba" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="9" cy="21" r="1" />
+              <circle cx="20" cy="21" r="1" />
+              <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
+            </svg>
+          </div>
+          <h2 className="mb-2 text-xl font-extrabold text-gray-800">سلتك فارغة</h2>
+          <p className="mb-6 text-sm text-gray-500">لم تقم بإضافة أي منتجات بعد.</p>
+          <button onClick={(): void => navigate('/store')} className="btn-premium w-full">
+            تصفح المتجر
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen pb-20 lg:pb-10" dir="rtl">
+      {/* ── Header ── */}
+      <section className="px-4 pt-24 pb-6 lg:pt-32">
+        <div className="mx-auto max-w-7xl">
+          <h1 className="text-3xl sm:text-4xl font-extrabold premium-gradient-text">
+            سلة التسوق
+          </h1>
+          <p className="mt-1 text-sm text-gray-500">
+            {items.length} منتج في سلتك
+          </p>
+        </div>
+      </section>
+
+      {/* ── Cart content ── */}
+      <section className="px-4">
+        <div className="mx-auto max-w-7xl grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Items list */}
+          <div className="lg:col-span-2 space-y-4">
+            {loading ? (
+              <CartSkeleton />
+            ) : (
+              items.map((item: CartItem) => (
+                <CartItemRow
+                  key={item.id}
+                  item={item}
+                  onRemove={handleRemove}
+                  onUpdateQty={handleUpdateQty}
+                />
+              ))
+            )}
+          </div>
+
+          {/* Checkout form */}
+          <div className="lg:col-span-1">
+            <CheckoutForm
+              onSubmit={handleCheckout}
+              submitting={submitting}
+              subtotal={subtotal}
+              shipping={shipping}
+              total={total}
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* ── Auth gate modal ── */}
       <AuthGateModal
-        open={showAuthGate}
-        onClose={() => setShowAuthGate(false)}
-        onAuthenticated={() => setShowAuthGate(false)}
+        open={authModalOpen}
+        onClose={(): void => setAuthModalOpen(false)}
+        onAuthenticated={(): void => {
+          setAuthModalOpen(false)
+          loadCart()
+        }}
       />
     </div>
-  );
-};
-
-export default CartPage;
+  )
+}
