@@ -9,14 +9,9 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     autoRefreshToken: true,
     detectSessionInUrl: false,
   },
-  global: {
-    headers: {
-      'x-client-info': 'scrubshop-web',
-    },
-  },
+  global: { headers: { 'x-client-info': 'scrubshop-web' } },
 });
 
-// Stable guest id persisted in localStorage for anonymous cart/favorites
 export function getGuestId(): string {
   const KEY = 'scrubshop_guest_id';
   let id = localStorage.getItem(KEY);
@@ -27,8 +22,6 @@ export function getGuestId(): string {
   return id;
 }
 
-// Helper to run a query scoped to the current guest (or user) by setting
-// the request.guest_id config so RLS policies can match.
 export async function withGuestContext<T>(fn: () => Promise<T>): Promise<T> {
   try {
     await supabase.rpc('set_config', {
@@ -36,8 +29,6 @@ export async function withGuestContext<T>(fn: () => Promise<T>): Promise<T> {
       config_value: getGuestId(),
       is_local: true,
     }).throwOnError();
-  } catch {
-    // ignore — service may not be available; policies still work for auth
-  }
+  } catch { /* ignore */ }
   return fn();
 }

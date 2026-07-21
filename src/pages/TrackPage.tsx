@@ -1,24 +1,32 @@
 import { useEffect, useState } from 'react';
-import { fetchOrders, fetchOrderItems, fetchOrderByNumber } from '../lib/api';
 import { useRouter } from '../lib/router';
+import { fetchOrders, fetchOrderItems, fetchOrderByNumber } from '../lib/api';
 import type { Order, OrderItem } from '../lib/types';
 
-const STATUS_MAP: Record<string, { label: string; color: string }> = {
-  pending: { label: 'قيد الانتظار', color: 'from-gold-300 to-gold-500' },
-  confirmed: { label: 'تم تأكيد الطلب', color: 'from-blush-300 to-blush-500' },
-  preparing: { label: 'جاري التجهيز', color: 'from-lavender-300 to-lavender-500' },
-  shipped: { label: 'تم الشحن', color: 'from-blue-300 to-blue-500' },
-  out_for_delivery: { label: 'قيد التوصيل', color: 'from-cyan-300 to-cyan-500' },
-  delivered: { label: 'تم التسليم', color: 'from-green-300 to-green-500' },
-  cancelled: { label: 'ملغي', color: 'from-red-300 to-red-500' },
+const STATUS_LABELS: Record<string, string> = {
+  pending: 'قيد الانتظار',
+  confirmed: 'تم تأكيد الطلب',
+  preparing: 'جاري التجهيز',
+  shipped: 'تم الشحن',
+  out_for_delivery: 'قيد التوصيل',
+  delivered: 'تم التسليم',
+  cancelled: 'ملغي',
 };
 
-const MOTIVATION_TEXTS = [
-  'طلبك في أمان',
-  'جاري التجهيز بعناية',
-  'على الطريق إليك',
-  'وصل بأمان',
-  'شكراً لثقتك',
+const STATUS_COLORS: Record<string, string> = {
+  pending: 'from-gold-300 to-gold-500',
+  confirmed: 'from-blush-300 to-blush-500',
+  preparing: 'from-lavender-300 to-lavender-500',
+  shipped: 'from-blue-300 to-blue-500',
+  out_for_delivery: 'from-cyan-300 to-cyan-500',
+  delivered: 'from-green-300 to-green-500',
+  cancelled: 'from-red-300 to-red-500',
+};
+
+const STEPS = [
+  { key: 'confirmed', label: 'تم تأكيد الطلب', icon: 'check' },
+  { key: 'shipped', label: 'تم الشحن', icon: 'truck' },
+  { key: 'delivered', label: 'تم الاستلام', icon: 'box' },
 ];
 
 export default function TrackPage() {
@@ -29,23 +37,12 @@ export default function TrackPage() {
   const [found, setFound] = useState<Order | null>(null);
   const [items, setItems] = useState<OrderItem[]>([]);
   const [searching, setSearching] = useState(false);
-  const [statusMsg, setStatusMsg] = useState('');
 
   useEffect(() => {
     (async () => {
       try { setOrders(await fetchOrders()); } catch { /* ignore */ }
       setLoading(false);
     })();
-  }, []);
-
-  // Auto-rotate motivational messages
-  useEffect(() => {
-    let idx = 0;
-    const interval = setInterval(() => {
-      setStatusMsg(MOTIVATION_TEXTS[idx]);
-      idx = (idx + 1) % MOTIVATION_TEXTS.length;
-    }, 3000);
-    return () => clearInterval(interval);
   }, []);
 
   const handleSearch = async () => {
@@ -59,89 +56,47 @@ export default function TrackPage() {
     setSearching(false);
   };
 
-  const showOrder = async (o: Order) => {
-    setFound(o);
-    setItems(await fetchOrderItems(o.id));
-  };
-
-  const stepIndex = found ? ['pending', 'confirmed', 'shipped', 'delivered'].indexOf(found.status) : -1;
+  const stepIndex = found ? STEPS.findIndex(s => s.key === found.status) : -1;
 
   return (
     <div className="pt-28 px-4 pb-12 relative overflow-hidden">
-      <div className="absolute top-1/4 left-10 w-64 h-64 rounded-full bg-blush-200/20 blur-3xl animate-breathe" />
-      <div className="absolute bottom-1/4 right-10 w-64 h-64 rounded-full bg-lavender-200/20 blur-3xl animate-breathe" style={{ animationDelay: '1s' }} />
+      <div className="absolute top-20 left-10 w-64 h-64 rounded-full bg-blush-200/20 blur-3xl animate-breathe" />
+      <div className="absolute bottom-20 right-10 w-64 h-64 rounded-full bg-lavender-200/20 blur-3xl animate-breathe" style={{ animationDelay: '1s' }} />
 
       <div className="relative z-10 mx-auto max-w-4xl">
-        <h1 className="font-display font-black text-3xl sm:text-4xl text-center mb-2 animate-fade-in-up">
+        <h1 className="font-display font-black text-3xl text-center mb-2 animate-fade-in-up">
           <span className="premium-gradient-text">تتبع طلبك</span>
         </h1>
         <p className="text-center text-beige-600 mb-8">تابع حالة طلبك خطوة بخطوة</p>
 
-        {/* animated 3-step progress cards */}
+        {/* 3-step progress cards */}
         {found && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            {[
-              { step: 1, label: 'تم تأكيد الطلب', icon: 'check', active: stepIndex >= 1 },
-              { step: 2, label: 'تم شحن الطلب', icon: 'truck', active: stepIndex >= 2 },
-              { step: 3, label: 'تم استلام الطلب', icon: 'box', active: stepIndex >= 3 },
-            ].map((s, i) => (
-              <div
-                key={s.step}
-                className={`glass-card rounded-3xl p-6 text-center relative overflow-hidden animate-fade-in-up transition-all duration-500 ${s.active ? 'ring-2 ring-blush-400' : 'opacity-60'}`}
-                style={{ animationDelay: `${i * 120}ms`, opacity: 0 }}
-              >
-                {s.active && <div className="absolute -top-8 -left-8 w-24 h-24 rounded-full bg-blush-200/40 blur-2xl animate-breathe" />}
-                {/* animated circular visual */}
-                <div className="relative z-10">
-                  <div className={`w-20 h-20 mx-auto rounded-full flex items-center justify-center mb-4 transition-all duration-700 ${s.active ? 'bg-gradient-to-br from-blush-400 to-lavender-400 shadow-glow animate-float-medium' : 'bg-white/50'}`}>
-                    <StepIcon name={s.icon} active={s.active} />
-                  </div>
-                  <div className={`text-xs font-bold mb-1 ${s.active ? 'text-blush-600' : 'text-beige-400'}`}>الخطوة {s.step}</div>
-                  <div className={`font-display font-bold ${s.active ? 'text-beige-900' : 'text-beige-500'}`}>{s.label}</div>
-                  {/* floating motivational text */}
-                  {s.active && (
-                    <div className="mt-2 h-5 overflow-hidden">
-                      <span key={statusMsg} className="text-xs text-blush-500 animate-fade-in inline-block">{statusMsg}</span>
+            {STEPS.map((s, i) => {
+              const active = stepIndex >= 0 && i <= stepIndex;
+              return (
+                <div key={i} className={`glass-card rounded-3xl p-6 text-center relative overflow-hidden animate-fade-in-up transition-all duration-500 ${active ? 'ring-2 ring-blush-400' : 'opacity-60'}`} style={{ animationDelay: `${i * 120}ms`, opacity: 0 }}>
+                  {active && <div className="absolute -top-8 -left-8 w-24 h-24 rounded-full bg-blush-200/40 blur-2xl animate-breathe" />}
+                  <div className="relative z-10">
+                    <div className={`w-20 h-20 mx-auto rounded-full flex items-center justify-center mb-4 transition-all duration-700 ${active ? 'bg-gradient-to-br from-blush-400 to-lavender-400 shadow-glow animate-float-medium' : 'bg-white/50'}`}>
+                      <StepIcon name={s.icon} active={active} />
                     </div>
-                  )}
+                    <div className={`text-xs font-bold mb-1 ${active ? 'text-blush-600' : 'text-beige-400'}`}>الخطوة {i + 1}</div>
+                    <div className={`font-display font-bold ${active ? 'text-beige-900' : 'text-beige-500'}`}>{s.label}</div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
-        {/* status messages */}
-        {found && (
-          <div className="space-y-2 mb-6">
-            {found.status === 'confirmed' && <StatusBanner text="تم قبول الطلب" color="from-blush-300 to-blush-500" />}
-            {found.status === 'shipped' && <StatusBanner text="تم شحن طلبك — سيتم التواصل معك قريبًا." color="from-blue-300 to-blue-500" />}
-            {found.status === 'delivered' && (
-              <>
-                <StatusBanner text="تم استلام الطلب بنجاح." color="from-green-300 to-green-500" />
-                <button onClick={() => navigate(`/feedback?order=${found.id}`)} className="btn-premium w-full">
-                  شاركنا تقييمك
-                </button>
-              </>
-            )}
-          </div>
-        )}
-
-        {/* search */}
+        {/* Search */}
         <div className="flex gap-2 max-w-xl mx-auto mb-8">
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleSearch()}
-            placeholder="SCB-XXXXX..."
-            className="input-premium text-sm"
-            dir="ltr"
-          />
-          <button onClick={handleSearch} disabled={searching} className="btn-premium whitespace-nowrap">
-            {searching ? '...' : 'بحث'}
-          </button>
+          <input value={search} onChange={e => setSearch(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSearch()} placeholder="SCB-XXXXX..." className="input-premium text-sm" dir="ltr" />
+          <button onClick={handleSearch} disabled={searching} className="btn-premium whitespace-nowrap">{searching ? '...' : 'بحث'}</button>
         </div>
 
-        {/* found order details */}
+        {/* Found order */}
         {found && (
           <div className="glass-card rounded-3xl p-6 mb-8 animate-scale-in">
             <div className="flex items-center justify-between mb-4">
@@ -149,9 +104,7 @@ export default function TrackPage() {
                 <div className="text-sm text-beige-600">رقم الطلب</div>
                 <div className="font-display font-bold text-xl text-beige-900">{found.order_number}</div>
               </div>
-              <div className={`px-4 py-2 rounded-full bg-gradient-to-r ${STATUS_MAP[found.status].color} text-white text-sm font-bold`}>
-                {STATUS_MAP[found.status].label}
-              </div>
+              <div className={`px-4 py-2 rounded-full bg-gradient-to-r ${STATUS_COLORS[found.status] || 'from-gray-300 to-gray-500'} text-white text-sm font-bold`}>{STATUS_LABELS[found.status] || found.status}</div>
             </div>
             <div className="text-sm text-beige-600 mb-2">تاريخ الطلب: {new Date(found.created_at).toLocaleDateString('ar')}</div>
             <div className="text-sm text-beige-600 mb-4">العنوان: {found.shipping_address_ar} - {found.city_ar}</div>
@@ -163,53 +116,33 @@ export default function TrackPage() {
                 </div>
               ))}
             </div>
-            <div className="border-t border-white/40 pt-3 flex justify-between font-bold text-beige-900">
-              <span>الإجمالي</span>
-              <span>{found.total_amount} ج.م</span>
-            </div>
+            <div className="border-t border-white/40 pt-3 flex justify-between font-bold text-beige-900"><span>الإجمالي</span><span>{Number(found.total_amount).toFixed(0)} ج.م</span></div>
           </div>
         )}
 
-        {/* previous orders */}
+        {/* Previous orders */}
         <h2 className="font-display font-bold text-xl text-beige-900 mb-4">طلباتك السابقة</h2>
         {loading ? (
           <div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="glass-card rounded-3xl h-20 skeleton" />)}</div>
         ) : orders.length === 0 ? (
-          <div className="glass-card rounded-3xl p-10 text-center">
-            <p className="text-beige-600">لا توجد طلبات بعد</p>
-          </div>
+          <div className="glass-card rounded-3xl p-10 text-center text-beige-600">لا توجد طلبات بعد</div>
         ) : (
           <div className="space-y-3">
             {orders.map((o, i) => (
-              <button
-                key={o.id}
-                onClick={() => showOrder(o)}
-                className="w-full glass-card rounded-3xl p-4 flex items-center justify-between hover:scale-[1.02] transition-transform animate-fade-in-up text-right"
-                style={{ animationDelay: `${i * 60}ms`, opacity: 0 }}
-              >
+              <button key={o.id} onClick={() => { setFound(o); fetchOrderItems(o.id).then(setItems); }} className="w-full glass-card rounded-3xl p-4 flex items-center justify-between hover:scale-[1.02] transition-transform animate-fade-in-up text-right" style={{ animationDelay: `${i * 60}ms`, opacity: 0 }}>
                 <div>
                   <div className="font-bold text-beige-900">{o.order_number}</div>
                   <div className="text-sm text-beige-600">{new Date(o.created_at).toLocaleDateString('ar')} • {o.customer_name}</div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="font-bold text-blush-600">{o.total_amount} ج.م</span>
-                  <span className={`px-3 py-1 rounded-full bg-gradient-to-r ${STATUS_MAP[o.status].color} text-white text-xs font-bold`}>
-                    {STATUS_MAP[o.status].label}
-                  </span>
+                  <span className="font-bold text-blush-600">{Number(o.total_amount).toFixed(0)} ج.م</span>
+                  <span className={`px-3 py-1 rounded-full bg-gradient-to-r ${STATUS_COLORS[o.status] || 'from-gray-300 to-gray-500'} text-white text-xs font-bold`}>{STATUS_LABELS[o.status] || o.status}</span>
                 </div>
               </button>
             ))}
           </div>
         )}
       </div>
-    </div>
-  );
-}
-
-function StatusBanner({ text, color }: { text: string; color: string }) {
-  return (
-    <div className={`glass-card rounded-2xl p-4 text-center bg-gradient-to-r ${color} text-white font-bold animate-fade-in-up`}>
-      {text}
     </div>
   );
 }

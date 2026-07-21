@@ -16,7 +16,7 @@ const listeners = new Set<(u: AppUser | null) => void>();
 export function onAuthChange(cb: (u: AppUser | null) => void) {
   listeners.add(cb);
   cb(currentUser);
-  return () => listeners.delete(cb);
+  return () => { listeners.delete(cb); };
 }
 
 function emit() {
@@ -111,10 +111,7 @@ export async function signOut() {
 
 export async function updateProfile(updates: { full_name?: string; phone?: string; avatar_url?: string }): Promise<{ error: string | null }> {
   if (!currentUser) return { error: 'غير مسجل' };
-  const { error } = await supabase
-    .from('profiles')
-    .update(updates)
-    .eq('id', currentUser.id);
+  const { error } = await supabase.from('profiles').update(updates).eq('id', currentUser.id);
   if (error) return { error: error.message };
   currentUser = { ...currentUser, ...updates };
   emit();
@@ -131,9 +128,7 @@ export async function uploadAvatar(file: File): Promise<{ url: string | null; er
   if (!currentUser) return { url: null, error: 'غير مسجل' };
   const ext = file.name.split('.').pop() || 'jpg';
   const path = `avatars/${currentUser.id}.${ext}`;
-  const { error: upErr } = await supabase.storage
-    .from('customer-avatars')
-    .upload(path, file, { upsert: true });
+  const { error: upErr } = await supabase.storage.from('customer-avatars').upload(path, file, { upsert: true });
   if (upErr) return { url: null, error: upErr.message };
   const { data } = supabase.storage.from('customer-avatars').getPublicUrl(path);
   return { url: data.publicUrl, error: null };

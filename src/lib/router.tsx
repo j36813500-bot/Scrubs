@@ -1,47 +1,45 @@
-import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 
-type RouterContextType = {
-  path: string;
-  query: URLSearchParams;
-  navigate: (to: string) => void;
-};
+type RouterState = { path: string; query: URLSearchParams };
 
-const RouterContext = createContext<RouterContextType>({
-  path: '/',
-  query: new URLSearchParams(),
-  navigate: () => {},
-});
+let currentState: RouterState = { path: '/', query: new URLSearchParams() };
+const listeners = new Set<() => void>();
+
+function parseHash(): RouterState {
+  const hash = window.location.hash.slice(1) || '/';
+  const [path, queryString] = hash.split('?');
+  return { path: path || '/', query: new URLSearchParams(queryString || '') };
+}
+
+function update() {
+  currentState = parseHash();
+  listeners.forEach(l => l());
+}
+
+window.addEventListener('hashchange', update);
 
 export function useRouter() {
-  return useContext(RouterContext);
-}
-
-function parseHash(): { path: string; query: URLSearchParams } {
-  const hash = window.location.hash.replace(/^#/, '') || '/';
-  const [path, qs] = hash.split('?');
-  return { path: path || '/', query: new URLSearchParams(qs || '') };
-}
-
-export function RouterProvider({ children }: { children: ReactNode }) {
-  const [{ path, query }, setState] = useState(parseHash);
-
+  const [, setTick] = useState(0);
   useEffect(() => {
-    const onChange = () => {
-      setState(parseHash());
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    };
-    window.addEventListener('hashchange', onChange);
-    if (!window.location.hash) window.location.hash = '/';
-    return () => window.removeEventListener('hashchange', onChange);
+    const l = () => setTick(t => t + 1);
+    listeners.add(l);
+    return () => { listeners.delete(l); };
   }, []);
 
   const navigate = useCallback((to: string) => {
     window.location.hash = to;
   }, []);
 
-  return (
-    <RouterContext.Provider value={{ path, query, navigate }}>
-      {children}
-    </RouterContext.Provider>
-  );
+  return { ...currentState, navigate };
+}
+
+export function RouterProvider({ children }: { children: React.ReactNode }) {
+  const [state, setState] = useState<RouterState>(() => parseHash());
+  useEffect(() => {
+    const l = () => setState(parseHash());
+    listeners.add(l);
+    setState(parseHash());
+    return () => { listeners.delete(l); };
+  }, []);
+  return <>{children}</>;
 }
