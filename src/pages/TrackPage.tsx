@@ -1,158 +1,745 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from '../lib/router';
 import { fetchOrders, fetchOrderItems, fetchOrderByNumber } from '../lib/api';
 import type { Order, OrderItem } from '../lib/types';
 
-const STATUS_LABELS: Record<string, string> = {
-  pending: 'قيد الانتظار',
-  confirmed: 'تم تأكيد الطلب',
-  preparing: 'جاري التجهيز',
-  shipped: 'تم الشحن',
-  out_for_delivery: 'قيد التوصيل',
-  delivered: 'تم التسليم',
-  cancelled: 'ملغي',
+/* -------------------------------------------------------------------------- */
+/* Status configuration                                                       */
+/* -------------------------------------------------------------------------- */
+
+type StatusKey =
+  | 'pending'
+  | 'confirmed'
+  | 'preparing'
+  | 'shipped'
+  | 'out_for_delivery'
+  | 'delivered'
+  | 'cancelled';
+
+type StatusConfig = {
+  label: string;
+  /** Tailwind classes for the status badge (text + bg + ring). */
+  badge: string;
+  /** Tailwind classes for the status dot. */
+  dot: string;
 };
 
-const STATUS_COLORS: Record<string, string> = {
-  pending: 'from-gold-300 to-gold-500',
-  confirmed: 'from-blush-300 to-blush-500',
-  preparing: 'from-lavender-300 to-lavender-500',
-  shipped: 'from-blue-300 to-blue-500',
-  out_for_delivery: 'from-cyan-300 to-cyan-500',
-  delivered: 'from-green-300 to-green-500',
-  cancelled: 'from-red-300 to-red-500',
+const STATUS_MAP: Record<StatusKey, StatusConfig> = {
+  pending: {
+    label: 'قيد الانتظار',
+    badge: 'bg-gold-100 text-gold-700 ring-1 ring-gold-300/50',
+    dot: 'bg-gold-400',
+  },
+  confirmed: {
+    label: 'تم تأكيد الطلب',
+    badge: 'bg-blush-100 text-blush-700 ring-1 ring-blush-300/50',
+    dot: 'bg-blush-400',
+  },
+  preparing: {
+    label: 'جاري التجهيز',
+    badge: 'bg-lavender-100 text-lavender-700 ring-1 ring-lavender-300/50',
+    dot: 'bg-lavender-400',
+  },
+  shipped: {
+    label: 'تم الشحن',
+    badge: 'bg-blue-100 text-blue-700 ring-1 ring-blue-300/50',
+    dot: 'bg-blue-400',
+  },
+  out_for_delivery: {
+    label: 'قيد التوصيل',
+    badge: 'bg-cyan-100 text-cyan-700 ring-1 ring-cyan-300/50',
+    dot: 'bg-cyan-400',
+  },
+  delivered: {
+    label: 'تم التسليم',
+    badge: 'bg-green-100 text-green-700 ring-1 ring-green-300/50',
+    dot: 'bg-green-400',
+  },
+  cancelled: {
+    label: 'ملغي',
+    badge: 'bg-red-100 text-red-700 ring-1 ring-red-300/50',
+    dot: 'bg-red-400',
+  },
 };
 
-const STEPS = [
-  { key: 'confirmed', label: 'تم تأكيد الطلب', icon: 'check' },
-  { key: 'shipped', label: 'تم الشحن', icon: 'truck' },
-  { key: 'delivered', label: 'تم الاستلام', icon: 'box' },
+function getStatusConfig(status: string): StatusConfig {
+  return STATUS_MAP[status as StatusKey] ?? STATUS_MAP.pending;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Progress steps                                                             */
+/* -------------------------------------------------------------------------- */
+
+type StepKey = 'confirmed' | 'preparing' | 'shipped' | 'out_for_delivery' | 'delivered';
+
+type StepDef = {
+  key: StepKey;
+  label: string;
+  icon: React.ReactNode;
+};
+
+/** The three milestone steps shown when an order is found. */
+const STEPS: StepDef[] = [
+  {
+    key: 'confirmed',
+    label: 'تم تأكيد الطلب',
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M9 11l3 3L22 4" />
+        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+      </svg>
+    ),
+  },
+  {
+    key: 'shipped',
+    label: 'تم الشحن',
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M1 3h15v13H1z" />
+        <path d="M16 8h4l3 3v5h-7V8z" />
+        <circle cx="5.5" cy="18.5" r="2.5" />
+        <circle cx="18.5" cy="18.5" r="2.5" />
+      </svg>
+    ),
+  },
+  {
+    key: 'delivered',
+    label: 'تم الاستلام',
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+        <path d="M9 22V12h6v10" />
+      </svg>
+    ),
+  },
 ];
 
-export default function TrackPage() {
-  const { navigate } = useRouter();
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [found, setFound] = useState<Order | null>(null);
-  const [items, setItems] = useState<OrderItem[]>([]);
-  const [searching, setSearching] = useState(false);
+/**
+ * Determine which of the 3 milestone steps are active for a given order status.
+ * A cancelled order shows no active steps.
+ */
+function getActiveStepIndex(status: string): number {
+  if (status === 'cancelled') return -1;
+  const order: StepKey[] = ['confirmed', 'preparing', 'shipped', 'out_for_delivery', 'delivered'];
+  const idx = order.indexOf(status as StepKey);
+  if (idx < 0) return -1;
+  // Map the granular status to the 3-step milestone index.
+  if (idx <= 1) return 0; // pending / confirmed / preparing → step 0
+  if (idx <= 3) return 1; // shipped / out_for_delivery → step 1
+  return 2; // delivered → step 2
+}
 
-  useEffect(() => {
-    (async () => {
-      try { setOrders(await fetchOrders()); } catch { /* ignore */ }
-      setLoading(false);
-    })();
-  }, []);
+/* -------------------------------------------------------------------------- */
+/* Helpers                                                                    */
+/* -------------------------------------------------------------------------- */
 
-  const handleSearch = async () => {
-    if (!search) return;
-    setSearching(true);
-    try {
-      const o = await fetchOrderByNumber(search);
-      setFound(o);
-      if (o) setItems(await fetchOrderItems(o.id));
-    } catch { /* ignore */ }
-    setSearching(false);
-  };
+/** Format a number as a localized Arabic price string. */
+function formatPrice(value: number): string {
+  return new Intl.NumberFormat('ar-EG', { maximumFractionDigits: 0 }).format(value);
+}
 
-  const stepIndex = found ? STEPS.findIndex(s => s.key === found.status) : -1;
+/** Format an ISO date string into a readable Arabic date. */
+function formatDate(iso: string): string {
+  try {
+    return new Intl.DateTimeFormat('ar-EG', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    }).format(new Date(iso));
+  } catch {
+    return iso;
+  }
+}
 
+/** Resolve the best image URL for an order item. */
+function itemImage(item: OrderItem): string | null {
+  if (item.product?.image_url) return item.product.image_url;
+  if (item.product?.gallery_urls && item.product.gallery_urls.length > 0) {
+    return item.product.gallery_urls[0];
+  }
+  return null;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Sub-components                                                             */
+/* -------------------------------------------------------------------------- */
+
+/** A single milestone step card. */
+type StepCardProps = {
+  step: StepDef;
+  active: boolean;
+  index: number;
+};
+
+const StepCard: React.FC<StepCardProps> = ({ step, active, index }) => {
   return (
-    <div className="pt-28 px-4 pb-12 relative overflow-hidden">
-      <div className="absolute top-20 left-10 w-64 h-64 rounded-full bg-blush-200/20 blur-3xl animate-breathe" />
-      <div className="absolute bottom-20 right-10 w-64 h-64 rounded-full bg-lavender-200/20 blur-3xl animate-breathe" style={{ animationDelay: '1s' }} />
-
-      <div className="relative z-10 mx-auto max-w-4xl">
-        <h1 className="font-display font-black text-3xl text-center mb-2 animate-fade-in-up">
-          <span className="premium-gradient-text">تتبع طلبك</span>
-        </h1>
-        <p className="text-center text-beige-600 mb-8">تابع حالة طلبك خطوة بخطوة</p>
-
-        {/* 3-step progress cards */}
-        {found && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            {STEPS.map((s, i) => {
-              const active = stepIndex >= 0 && i <= stepIndex;
-              return (
-                <div key={i} className={`glass-card rounded-3xl p-6 text-center relative overflow-hidden animate-fade-in-up transition-all duration-500 ${active ? 'ring-2 ring-blush-400' : 'opacity-60'}`} style={{ animationDelay: `${i * 120}ms`, opacity: 0 }}>
-                  {active && <div className="absolute -top-8 -left-8 w-24 h-24 rounded-full bg-blush-200/40 blur-2xl animate-breathe" />}
-                  <div className="relative z-10">
-                    <div className={`w-20 h-20 mx-auto rounded-full flex items-center justify-center mb-4 transition-all duration-700 ${active ? 'bg-gradient-to-br from-blush-400 to-lavender-400 shadow-glow animate-float-medium' : 'bg-white/50'}`}>
-                      <StepIcon name={s.icon} active={active} />
-                    </div>
-                    <div className={`text-xs font-bold mb-1 ${active ? 'text-blush-600' : 'text-beige-400'}`}>الخطوة {i + 1}</div>
-                    <div className={`font-display font-bold ${active ? 'text-beige-900' : 'text-beige-500'}`}>{s.label}</div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Search */}
-        <div className="flex gap-2 max-w-xl mx-auto mb-8">
-          <input value={search} onChange={e => setSearch(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSearch()} placeholder="SCB-XXXXX..." className="input-premium text-sm" dir="ltr" />
-          <button onClick={handleSearch} disabled={searching} className="btn-premium whitespace-nowrap">{searching ? '...' : 'بحث'}</button>
+    <div className="flex-1">
+      <div
+        className={
+          'glass-card relative flex flex-col items-center gap-3 rounded-3xl p-5 text-center transition-all duration-500 ' +
+          (active ? 'shadow-glow ring-1 ring-blush-300/40' : 'opacity-60')
+        }
+      >
+        {/* Gradient icon circle */}
+        <div
+          className={
+            'flex h-14 w-14 items-center justify-center rounded-full transition-all duration-500 ' +
+            (active
+              ? 'bg-gradient-to-br from-blush-400 to-lavender-400 text-white shadow-md'
+              : 'bg-beige-100/70 text-beige-400')
+          }
+        >
+          {step.icon}
         </div>
 
-        {/* Found order */}
-        {found && (
-          <div className="glass-card rounded-3xl p-6 mb-8 animate-scale-in">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <div className="text-sm text-beige-600">رقم الطلب</div>
-                <div className="font-display font-bold text-xl text-beige-900">{found.order_number}</div>
-              </div>
-              <div className={`px-4 py-2 rounded-full bg-gradient-to-r ${STATUS_COLORS[found.status] || 'from-gray-300 to-gray-500'} text-white text-sm font-bold`}>{STATUS_LABELS[found.status] || found.status}</div>
-            </div>
-            <div className="text-sm text-beige-600 mb-2">تاريخ الطلب: {new Date(found.created_at).toLocaleDateString('ar')}</div>
-            <div className="text-sm text-beige-600 mb-4">العنوان: {found.shipping_address_ar} - {found.city_ar}</div>
-            <div className="space-y-2 mb-4">
-              {items.map(it => (
-                <div key={it.id} className="glass rounded-2xl p-3 flex justify-between text-sm">
-                  <span className="text-beige-800">{it.product_name_ar} × {it.quantity}</span>
-                  <span className="text-blush-600 font-bold">{(Number(it.unit_price) * it.quantity).toFixed(0)} ج.م</span>
-                </div>
-              ))}
-            </div>
-            <div className="border-t border-white/40 pt-3 flex justify-between font-bold text-beige-900"><span>الإجمالي</span><span>{Number(found.total_amount).toFixed(0)} ج.م</span></div>
-          </div>
-        )}
+        {/* Label */}
+        <span
+          className={
+            'text-sm font-semibold leading-snug ' +
+            (active ? 'text-beige-800' : 'text-beige-500')
+          }
+        >
+          {step.label}
+        </span>
 
-        {/* Previous orders */}
-        <h2 className="font-display font-bold text-xl text-beige-900 mb-4">طلباتك السابقة</h2>
-        {loading ? (
-          <div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="glass-card rounded-3xl h-20 skeleton" />)}</div>
-        ) : orders.length === 0 ? (
-          <div className="glass-card rounded-3xl p-10 text-center text-beige-600">لا توجد طلبات بعد</div>
-        ) : (
-          <div className="space-y-3">
-            {orders.map((o, i) => (
-              <button key={o.id} onClick={() => { setFound(o); fetchOrderItems(o.id).then(setItems); }} className="w-full glass-card rounded-3xl p-4 flex items-center justify-between hover:scale-[1.02] transition-transform animate-fade-in-up text-right" style={{ animationDelay: `${i * 60}ms`, opacity: 0 }}>
-                <div>
-                  <div className="font-bold text-beige-900">{o.order_number}</div>
-                  <div className="text-sm text-beige-600">{new Date(o.created_at).toLocaleDateString('ar')} • {o.customer_name}</div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="font-bold text-blush-600">{Number(o.total_amount).toFixed(0)} ج.م</span>
-                  <span className={`px-3 py-1 rounded-full bg-gradient-to-r ${STATUS_COLORS[o.status] || 'from-gray-300 to-gray-500'} text-white text-xs font-bold`}>{STATUS_LABELS[o.status] || o.status}</span>
-                </div>
-              </button>
-            ))}
-          </div>
-        )}
+        {/* Step number pip */}
+        <span
+          className={
+            'absolute top-3 left-3 flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold ' +
+            (active
+              ? 'bg-gradient-to-br from-blush-500 to-lavender-500 text-white'
+              : 'bg-beige-200/70 text-beige-500')
+          }
+        >
+          {index + 1}
+        </span>
       </div>
     </div>
   );
-}
+};
 
-function StepIcon({ name, active }: { name: string; active: boolean }) {
-  const cls = `w-9 h-9 ${active ? 'text-white' : 'text-beige-400'}`;
-  switch (name) {
-    case 'check': return <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 13l4 4L19 7"/></svg>;
-    case 'truck': return <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 3h15v13H1zM16 8h4l3 3v5h-7"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>;
-    case 'box': return <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.27 6.96L12 12.01l8.73-5.05M12 22.08V12"/></svg>;
-    default: return null;
+/** Connector line between step cards (desktop only). */
+const StepConnector: React.FC<{ active: boolean }> = ({ active }) => (
+  <div className="hidden sm:block">
+    <div
+      className={
+        'h-1 w-full rounded-full transition-all duration-500 ' +
+        (active
+          ? 'bg-gradient-to-r from-blush-400 to-lavender-400'
+          : 'bg-beige-200/60')
+      }
+    />
+  </div>
+);
+
+/** Status badge pill. */
+const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
+  const cfg = getStatusConfig(status);
+  return (
+    <span
+      className={
+        'inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ' +
+        cfg.badge
+      }
+    >
+      <span className={'h-1.5 w-1.5 rounded-full ' + cfg.dot} />
+      {cfg.label}
+    </span>
+  );
+};
+
+/** Skeleton block for the order details card. */
+const OrderDetailsSkeleton: React.FC = () => (
+  <div className="glass-card rounded-3xl p-6 sm:p-8">
+    <div className="mb-6 flex items-center justify-between">
+      <div className="h-6 w-40 rounded-full bg-beige-200/60 animate-pulse" />
+      <div className="h-6 w-24 rounded-full bg-beige-200/50 animate-pulse" />
+    </div>
+    <div className="space-y-3">
+      <div className="h-4 w-full rounded-full bg-beige-200/50 animate-pulse" />
+      <div className="h-4 w-2/3 rounded-full bg-beige-200/40 animate-pulse" />
+      <div className="h-4 w-1/2 rounded-full bg-beige-200/40 animate-pulse" />
+    </div>
+    <div className="mt-6 space-y-3 border-t border-beige-200/50 pt-6">
+      {Array.from({ length: 3 }).map((_, i) => (
+        <div key={i} className="flex items-center gap-3">
+          <div className="h-14 w-14 rounded-2xl bg-beige-200/50 animate-pulse" />
+          <div className="flex-1 space-y-2">
+            <div className="h-4 w-3/4 rounded-full bg-beige-200/50 animate-pulse" />
+            <div className="h-3 w-1/3 rounded-full bg-beige-200/40 animate-pulse" />
+          </div>
+          <div className="h-5 w-16 rounded-full bg-beige-200/40 animate-pulse" />
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+/** Skeleton block for a single previous-order row. */
+const OrderRowSkeleton: React.FC = () => (
+  <div className="glass-card flex items-center gap-4 rounded-2xl p-4">
+    <div className="h-12 w-12 rounded-full bg-beige-200/50 animate-pulse" />
+    <div className="flex-1 space-y-2">
+      <div className="h-4 w-32 rounded-full bg-beige-200/50 animate-pulse" />
+      <div className="h-3 w-24 rounded-full bg-beige-200/40 animate-pulse" />
+    </div>
+    <div className="h-6 w-20 rounded-full bg-beige-200/40 animate-pulse" />
+  </div>
+);
+
+/* -------------------------------------------------------------------------- */
+/* TrackPage                                                                   */
+/* -------------------------------------------------------------------------- */
+
+const TrackPage: React.FC = () => {
+  const router = useRouter();
+
+  const [searchValue, setSearchValue] = useState('');
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+
+  const [activeOrder, setActiveOrder] = useState<Order | null>(null);
+  const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
+  const [loadingItems, setLoadingItems] = useState(false);
+
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loadingOrders, setLoadingOrders] = useState(true);
+
+  /* ----------------------------------------------------------------------- */
+  /* Load previous orders on mount                                           */
+  /* ----------------------------------------------------------------------- */
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadOrders() {
+      setLoadingOrders(true);
+      try {
+        const data = await fetchOrders();
+        if (!cancelled) setOrders(data);
+      } catch (err) {
+        console.error('Failed to load orders:', err);
+      } finally {
+        if (!cancelled) setLoadingOrders(false);
+      }
+    }
+
+    loadOrders();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  /* ----------------------------------------------------------------------- */
+  /* Load items for the active order                                          */
+  /* ----------------------------------------------------------------------- */
+  const loadOrderItems = useCallback(async (orderId: string) => {
+    setLoadingItems(true);
+    try {
+      const items = await fetchOrderItems(orderId);
+      setOrderItems(items);
+    } catch (err) {
+      console.error('Failed to load order items:', err);
+      setOrderItems([]);
+    } finally {
+      setLoadingItems(false);
+    }
+  }, []);
+
+  /* ----------------------------------------------------------------------- */
+  /* Search handler                                                          */
+  /* ----------------------------------------------------------------------- */
+  async function handleSearch(e: React.FormEvent): Promise<void> {
+    e.preventDefault();
+    const query = searchValue.trim().toUpperCase();
+    if (!query) return;
+
+    setSearching(true);
+    setSearchError(null);
+    setOrderItems([]);
+    setLoadingItems(true);
+
+    try {
+      const order = await fetchOrderByNumber(query);
+      if (!order) {
+        setActiveOrder(null);
+        setSearchError('لم يتم العثور على طلب بهذا الرقم. تأكد من الرقم وحاول مرة أخرى.');
+        setLoadingItems(false);
+        return;
+      }
+      setActiveOrder(order);
+      await loadOrderItems(order.id);
+    } catch (err) {
+      console.error('Search failed:', err);
+      setSearchError('حدث خطأ أثناء البحث. يرجى المحاولة مرة أخرى.');
+      setActiveOrder(null);
+      setLoadingItems(false);
+    } finally {
+      setSearching(false);
+    }
   }
-}
+
+  /* ----------------------------------------------------------------------- */
+  /* Select a previous order to view its details                             */
+  /* ----------------------------------------------------------------------- */
+  function handleSelectOrder(order: Order): void {
+    setActiveOrder(order);
+    setSearchValue(order.order_number);
+    setSearchError(null);
+    // Smoothly scroll to the top where the details render.
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    loadOrderItems(order.id);
+  }
+
+  /* ----------------------------------------------------------------------- */
+  /* Derived values                                                          */
+  /* ----------------------------------------------------------------------- */
+  const activeStepIndex = activeOrder ? getActiveStepIndex(activeOrder.status) : -1;
+  const itemsTotal = orderItems.reduce(
+    (sum, item) => sum + item.unit_price * item.quantity,
+    0,
+  );
+
+  /* ----------------------------------------------------------------------- */
+  /* Render                                                                  */
+  /* ----------------------------------------------------------------------- */
+  return (
+    <div
+      dir="rtl"
+      className="relative min-h-screen overflow-hidden bg-gradient-to-b from-blush-50/40 via-white to-lavender-50/30"
+    >
+      {/* Ambient glow orbs */}
+      <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden="true">
+        <div className="absolute -top-24 -right-24 h-72 w-72 rounded-full bg-blush-400/20 blur-3xl" />
+        <div className="absolute top-1/3 -left-32 h-80 w-80 rounded-full bg-lavender-400/20 blur-3xl" />
+        <div className="absolute bottom-0 right-1/4 h-64 w-64 rounded-full bg-gold-300/10 blur-3xl" />
+      </div>
+
+      {/* Content */}
+      <div className="relative z-10 mx-auto max-w-4xl px-4 py-10 sm:px-6 lg:px-8">
+        {/* Header */}
+        <header className="mb-8 text-center">
+          <h1 className="premium-gradient-text text-4xl font-extrabold tracking-tight sm:text-5xl">
+            تتبع طلبك
+          </h1>
+          <p className="mt-2 text-sm text-beige-500">
+            تابع حالة طلبك خطوة بخطوة
+          </p>
+        </header>
+
+        {/* Search bar */}
+        <form onSubmit={handleSearch} className="mb-8">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="relative flex-1">
+              <input
+                type="text"
+                value={searchValue}
+                onChange={(e) => setSearchValue(e.target.value)}
+                placeholder="SCB-XXXXX"
+                aria-label="رقم الطلب"
+                dir="ltr"
+                className="input-premium w-full rounded-full py-3 pr-12 pl-4 text-sm text-beige-800 placeholder:text-beige-400 focus:outline-none"
+              />
+              <svg
+                className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-beige-400"
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <circle cx="11" cy="11" r="7" />
+                <path d="m21 21-4.3-4.3" />
+              </svg>
+            </div>
+            <button
+              type="submit"
+              disabled={searching || !searchValue.trim()}
+              className="rounded-full bg-gradient-to-r from-blush-400 to-lavender-400 px-8 py-3 text-sm font-semibold text-white shadow-glow transition-all duration-200 hover:scale-105 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
+            >
+              {searching ? 'جاري البحث...' : 'بحث'}
+            </button>
+          </div>
+          {searchError && (
+            <p className="mt-3 text-center text-sm text-red-500">{searchError}</p>
+          )}
+        </form>
+
+        {/* Order found: progress steps */}
+        {activeOrder && (
+          <section className="mb-8">
+            <div className="flex items-stretch gap-3 sm:gap-4">
+              {STEPS.map((step, i) => (
+                <div key={step.key} className="contents">
+                  <StepCard step={step} active={activeStepIndex >= i} index={i} />
+                  {i < STEPS.length - 1 && (
+                    <div className="flex items-center">
+                      <StepConnector active={activeStepIndex > i} />
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Order found: details card */}
+        {activeOrder && (
+          <section className="mb-10">
+            {loadingItems ? (
+              <OrderDetailsSkeleton />
+            ) : (
+              <div className="glass-card rounded-3xl p-6 sm:p-8">
+                {/* Header row */}
+                <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <h2 className="text-lg font-bold text-beige-800">
+                      تفاصيل الطلب
+                    </h2>
+                    <p className="mt-1 font-mono text-sm text-beige-500" dir="ltr">
+                      {activeOrder.order_number}
+                    </p>
+                  </div>
+                  <StatusBadge status={activeOrder.status} />
+                </div>
+
+                {/* Meta grid */}
+                <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <p className="text-xs font-medium text-beige-400">
+                      تاريخ الطلب
+                    </p>
+                    <p className="mt-1 text-sm text-beige-700">
+                      {formatDate(activeOrder.created_at)}
+                    </p>
+                  </div>
+                  {activeOrder.tracking_number && (
+                    <div>
+                      <p className="text-xs font-medium text-beige-400">
+                        رقم الشحن
+                      </p>
+                      <p
+                        className="mt-1 font-mono text-sm text-beige-700"
+                        dir="ltr"
+                      >
+                        {activeOrder.tracking_number}
+                      </p>
+                    </div>
+                  )}
+                  <div className="sm:col-span-2">
+                    <p className="text-xs font-medium text-beige-400">
+                      عنوان الشحن
+                    </p>
+                    <p className="mt-1 text-sm text-beige-700">
+                      {activeOrder.shipping_address_ar}
+                      {activeOrder.city_ar ? ` — ${activeOrder.city_ar}` : ''}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Items list */}
+                <div className="border-t border-beige-200/50 pt-5">
+                  <h3 className="mb-4 text-sm font-semibold text-beige-700">
+                    المنتجات
+                  </h3>
+                  {orderItems.length === 0 ? (
+                    <p className="py-6 text-center text-sm text-beige-400">
+                      لا توجد منتجات في هذا الطلب.
+                    </p>
+                  ) : (
+                    <ul className="space-y-3">
+                      {orderItems.map((item) => {
+                        const img = itemImage(item);
+                        return (
+                          <li
+                            key={item.id}
+                            className="flex items-center gap-3"
+                          >
+                            {/* Thumbnail */}
+                            <div className="h-14 w-14 flex-shrink-0 overflow-hidden rounded-2xl bg-beige-100/60">
+                              {img ? (
+                                <img
+                                  src={img}
+                                  alt={item.product_name_ar}
+                                  loading="lazy"
+                                  className="h-full w-full object-cover"
+                                />
+                              ) : (
+                                <div className="flex h-full w-full items-center justify-center text-beige-300">
+                                  <svg
+                                    width="22"
+                                    height="22"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="1.5"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    aria-hidden="true"
+                                  >
+                                    <path d="M3 9 4.5 4h15L21 9" />
+                                    <path d="M3 9v11h18V9" />
+                                    <path d="M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0" />
+                                  </svg>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Info */}
+                            <div className="flex-1 min-w-0">
+                              <p className="truncate text-sm font-semibold text-beige-800">
+                                {item.product_name_ar}
+                              </p>
+                              <p className="mt-0.5 text-xs text-beige-400">
+                                {[
+                                  item.color_name_ar,
+                                  item.size_label,
+                                  `الكمية: ${item.quantity}`,
+                                ]
+                                  .filter(Boolean)
+                                  .join(' • ')}
+                              </p>
+                            </div>
+
+                            {/* Price */}
+                            <span className="flex-shrink-0 text-sm font-bold text-blush-600">
+                              {formatPrice(item.unit_price * item.quantity)} ج.م
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
+
+                {/* Total */}
+                <div className="mt-6 flex items-center justify-between border-t border-beige-200/50 pt-5">
+                  <span className="text-sm font-semibold text-beige-700">
+                    الإجمالي
+                  </span>
+                  <span className="text-xl font-extrabold premium-gradient-text">
+                    {formatPrice(activeOrder.total_amount || itemsTotal)} ج.م
+                  </span>
+                </div>
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* Previous orders */}
+        <section>
+          <h2 className="mb-4 text-lg font-bold text-beige-800">طلباتك السابقة</h2>
+
+          {/* Loading skeleton */}
+          {loadingOrders && (
+            <div className="space-y-3">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <OrderRowSkeleton key={i} />
+              ))}
+            </div>
+          )}
+
+          {/* Empty state */}
+          {!loadingOrders && orders.length === 0 && (
+            <div className="glass-card flex flex-col items-center justify-center rounded-3xl px-6 py-14 text-center">
+              <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-beige-100 to-beige-200/60 text-beige-400">
+                <svg
+                  width="36"
+                  height="36"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M3 9 4.5 4h15L21 9" />
+                  <path d="M3 9v11h18V9" />
+                  <path d="M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0" />
+                </svg>
+              </div>
+              <h3 className="text-base font-semibold text-beige-700">
+                لا توجد طلبات سابقة
+              </h3>
+              <p className="mt-1 max-w-xs text-sm text-beige-500">
+                لم نعثر على أي طلبات سابقة مرتبطة بحسابك. ابدأ التسوق الآن لإنشاء طلبك الأول.
+              </p>
+              <button
+                type="button"
+                onClick={() => router.push('/shop')}
+                className="mt-5 rounded-full bg-gradient-to-r from-blush-400 to-lavender-400 px-6 py-2 text-sm font-semibold text-white shadow-glow transition hover:scale-105"
+              >
+                تصفح المتجر
+              </button>
+            </div>
+          )}
+
+          {/* Orders list */}
+          {!loadingOrders && orders.length > 0 && (
+            <ul className="space-y-3">
+              {orders.map((order) => (
+                <li key={order.id}>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectOrder(order)}
+                    className={
+                      'group glass-card flex w-full items-center gap-4 rounded-2xl p-4 text-right transition-all duration-200 hover:scale-[1.02] hover:shadow-glow focus:outline-none focus-visible:ring-2 focus-visible:ring-blush-400/60 ' +
+                      (activeOrder?.id === order.id ? 'ring-1 ring-blush-300/50' : '')
+                    }
+                  >
+                    {/* Icon */}
+                    <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blush-100 to-lavender-100 text-blush-500">
+                      <svg
+                        width="22"
+                        height="22"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                      >
+                        <path d="M1 3h15v13H1z" />
+                        <path d="M16 8h4l3 3v5h-7V8z" />
+                        <circle cx="5.5" cy="18.5" r="2.5" />
+                        <circle cx="18.5" cy="18.5" r="2.5" />
+                      </svg>
+                    </div>
+
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                      <p
+                        className="font-mono text-sm font-semibold text-beige-800"
+                        dir="ltr"
+                      >
+                        {order.order_number}
+                      </p>
+                      <p className="mt-0.5 text-xs text-beige-400">
+                        {formatDate(order.created_at)}
+                      </p>
+                    </div>
+
+                    {/* Total + status */}
+                    <div className="flex flex-col items-end gap-1.5">
+                      <span className="text-sm font-bold text-blush-600">
+                        {formatPrice(order.total_amount)} ج.م
+                      </span>
+                      <StatusBadge status={order.status} />
+                    </div>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </div>
+    </div>
+  );
+};
+
+export default TrackPage;

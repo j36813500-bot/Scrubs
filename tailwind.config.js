@@ -12,6 +12,7 @@ export default {
       fontFamily: {
         display: ['"Tajawal"', 'system-ui', 'sans-serif'],
         sans: ['"Tajawal"', 'system-ui', 'sans-serif'],
+        arabic: ['"Tajawal"', 'system-ui', 'sans-serif'],
       },
       animation: {
         'fade-in': 'fadeIn 0.5s ease-out forwards',
